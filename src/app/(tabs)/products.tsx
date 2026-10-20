@@ -1,10 +1,11 @@
 import { FlashList } from '@shopify/flash-list';
 import { router } from 'expo-router';
 import { memo, useCallback, useDeferredValue, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Badge, Button, Card, Chip, EmptyState, ErrorState, Input, Screen, Skeleton, Text } from '@/components/ui';
-import type { Product } from '@/data';
+import { repo, type Product } from '@/data';
+import { products as sampleProducts } from '@/data/seed';
 import { formatPrice } from '@/lib/format';
 import { products } from '@/store';
 import { spacing } from '@/theme';
@@ -36,6 +37,19 @@ export default function ProductsScreen() {
       }),
     [items, q, filter],
   );
+
+  const [seeding, setSeeding] = useState(false);
+  // Yeni (gerçek) hesapta liste boş başlar; örnek ürünler stoklu ve stoksuz durumları birlikte gösterir.
+  async function addSamples() {
+    setSeeding(true);
+    try {
+      for (const { id: _id, ...p } of sampleProducts) products.upsert(await repo.saveProduct(p));
+    } catch (e) {
+      Alert.alert('Örnek ürünler eklenemedi', (e as Error).message);
+    } finally {
+      setSeeding(false);
+    }
+  }
 
   const open = useCallback((id: string) => router.push({ pathname: '/product/[id]', params: { id } }), []);
 
@@ -76,7 +90,12 @@ export default function ProductsScreen() {
           ) : error ? (
             <ErrorState error={error} onRetry={products.load} />
           ) : (
-            <EmptyState icon="pricetags-outline" title="Ürün bulunamadı" actionTitle="Ürün ekle" onAction={() => open('new')} />
+            <View style={styles.gap}>
+              <EmptyState icon="pricetags-outline" title="Ürün bulunamadı" actionTitle="Ürün ekle" onAction={() => open('new')} />
+              {items.length === 0 && (
+                <Button title="Örnek ürünleri ekle" icon="sparkles-outline" variant="ghost" onPress={addSamples} loading={seeding} />
+              )}
+            </View>
           )
         }
       />
