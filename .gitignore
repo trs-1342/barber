@@ -43,13 +43,11 @@ example
 /android
 
 # env (EXPO_PUBLIC_* değerleri istemciye gömülür ama proje kimlikleri depoya girmesin)
-.env
 .env.*
 !.env.example
 
 # yerel derleme çıktıları
 /builds
-google-services.json
 
 # ajan çalışma kopyaları
 .claude/worktrees/
