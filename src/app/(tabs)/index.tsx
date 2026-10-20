@@ -62,7 +62,7 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      <Card style={styles.gap}>
+      <Card style={styles.gap} onPress={() => router.push('/reports')}>
         <SectionTitle
           title="Son 7 gün"
           action={

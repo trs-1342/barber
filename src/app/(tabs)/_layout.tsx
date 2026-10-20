@@ -26,9 +26,9 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Label>Ürünler</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="tag" md="inventory_2" />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="reports">
-        <NativeTabs.Trigger.Label>Raporlar</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="chart.bar" md="bar_chart" />
+      <NativeTabs.Trigger name="promotions">
+        <NativeTabs.Trigger.Label>Reklam</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="megaphone" md="campaign" />
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="account">
         <NativeTabs.Trigger.Label>Hesap</NativeTabs.Trigger.Label>

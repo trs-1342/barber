@@ -144,7 +144,8 @@ export function createFirebaseRepository(): Repository {
     },
 
     async setPromotionStatus(id, status) {
-      await updateDoc(doc(db(), 'suppliers', uid(), 'promotions', id), { status });
+      const patch = status === 'ended' ? { status, endsAt: new Date().toISOString() } : { status };
+      await updateDoc(doc(db(), 'suppliers', uid(), 'promotions', id), patch);
     },
   };
 }

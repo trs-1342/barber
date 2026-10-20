@@ -81,6 +81,9 @@ create trigger orders_transition before update on public.orders
 -- Kampanya sayaçlarını istemci değiştiremez.
 create or replace function public.protect_promotion_counters() returns trigger language plpgsql as $$
 begin
+  if old.status = 'ended' or old.ends_at <= now() then
+    raise exception 'Biten kampanya değiştirilemez' using errcode = 'P0002';
+  end if;
   new.impressions := old.impressions;
   new.clicks := old.clicks;
   return new;

@@ -48,8 +48,7 @@ export default function ReportsScreen() {
   const maxTop = Math.max(1, ...r.top.map((t) => t.revenue));
 
   return (
-    <Screen refreshing={loading && loaded} onRefresh={orders.load}>
-      <Text variant="title">Satış Raporları</Text>
+    <Screen edges={[]} refreshing={loading && loaded} onRefresh={orders.load}>
       <View style={styles.row}>
         {RANGES.map((d) => (
           <Chip key={d} label={`Son ${d} gün`} selected={days === d} onPress={() => setDays(d)} />

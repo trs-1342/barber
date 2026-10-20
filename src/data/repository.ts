@@ -24,7 +24,8 @@ export interface Repository {
 
   listPromotions(signal?: AbortSignal): Promise<Promotion[]>;
   createPromotion(input: PromotionInput): Promise<Promotion>;
-  setPromotionStatus(id: string, status: 'active' | 'paused'): Promise<void>;
+  /** 'ended' erken bitirmedir ve geri alınamaz. */
+  setPromotionStatus(id: string, status: Promotion['status']): Promise<void>;
 }
 
 export class NotFoundError extends Error {
@@ -38,6 +39,13 @@ export class InvalidTransitionError extends Error {
   constructor() {
     super('Sipariş bu duruma geçirilemez. Liste güncel olmayabilir; yenileyip tekrar deneyin.');
     this.name = 'InvalidTransitionError';
+  }
+}
+
+export class ValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ValidationError';
   }
 }
 

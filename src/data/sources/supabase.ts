@@ -116,7 +116,8 @@ export function createSupabaseRepository(): Repository {
     },
 
     async setPromotionStatus(id, status) {
-      check(await sb().from('promotions').update({ status }).eq('id', id).select().single());
+      const patch = status === 'ended' ? { status, ends_at: new Date().toISOString() } : { status };
+      check(await sb().from('promotions').update(patch).eq('id', id).select().single());
     },
   };
 }

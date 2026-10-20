@@ -31,9 +31,10 @@ service cloud.firestore {
           && request.resource.data.impressions == 0
           && request.resource.data.clicks == 0;
         // Gösterim/tıklama sayılarını istemci değiştiremez.
-        allow update: if isOwner(uid) && onlyChanged(['status'])
-          && request.resource.data.status in ['active', 'paused']
-          && resource.data.status != 'ended';
+        // Duraklat/devam ettir yalnızca status; erken bitirme status + endsAt değiştirir.
+        allow update: if isOwner(uid) && resource.data.status != 'ended' && (
+          (onlyChanged(['status']) && request.resource.data.status in ['active', 'paused'])
+          || (onlyChanged(['status', 'endsAt']) && request.resource.data.status == 'ended'));
       }
     }
 

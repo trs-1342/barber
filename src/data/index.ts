@@ -19,6 +19,6 @@ function create(): Repository {
 
 export const repo: Repository = create();
 
-export { AuthError, InvalidTransitionError, NotFoundError } from './repository';
+export { AuthError, InvalidTransitionError, NotFoundError, ValidationError } from './repository';
 export type { Credentials, ProductInput, PromotionInput, Registration, Repository } from './repository';
 export * from './types';

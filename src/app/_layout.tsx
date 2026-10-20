@@ -41,7 +41,9 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="order/[id]" options={{ title: 'Sipariş' }} />
           <Stack.Screen name="product/[id]" options={{ title: 'Ürün', presentation: 'modal' }} />
-          <Stack.Screen name="promotions" options={{ title: 'Reklam ve Öne Çıkarma' }} />
+          <Stack.Screen name="promotion/new" options={{ title: 'Yeni kampanya', presentation: 'modal' }} />
+          <Stack.Screen name="promotion/[id]" options={{ title: 'Kampanya' }} />
+          <Stack.Screen name="reports" options={{ title: 'Satış Raporları' }} />
           <Stack.Screen name="settings" options={{ title: 'Ayarlar' }} />
         </Stack.Protected>
       </Stack>

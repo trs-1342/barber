@@ -1,6 +1,7 @@
 import { canTransition } from '@/lib/orders';
+import { effectiveStatus, validateDraft } from '@/lib/promotions';
 
-import { AuthError, InvalidTransitionError, NotFoundError, type Repository } from '../repository';
+import { AuthError, InvalidTransitionError, NotFoundError, ValidationError, type Repository } from '../repository';
 import * as seed from '../seed';
 import type { Order, Product, Promotion, Supplier } from '../types';
 
@@ -67,13 +68,21 @@ export function createMockRepository(latency = true): Repository {
 
     listPromotions: (signal) => wait(promotions, signal),
     async createPromotion(input) {
+      // Sunucu tarafı doğrulama: istemci atlansa bile aynı kurallar uygulanır.
+      const errors = validateDraft({ ...input, daily: input.dailyBudget }, promotions);
+      const first = Object.values(errors)[0];
+      if (first) throw new ValidationError(first);
       const created: Promotion = { ...input, id: `pr${Date.now()}`, status: 'active', impressions: 0, clicks: 0 };
       promotions = [created, ...promotions];
       return wait(created);
     },
     async setPromotionStatus(id, status) {
-      if (!promotions.some((p) => p.id === id)) throw new NotFoundError('Kampanya');
-      promotions = promotions.map((p) => (p.id === id ? { ...p, status } : p));
+      const cur = promotions.find((p) => p.id === id);
+      if (!cur) throw new NotFoundError('Kampanya');
+      if (effectiveStatus(cur) === 'ended') throw new ValidationError('Biten kampanya değiştirilemez');
+      promotions = promotions.map((p) =>
+        p.id === id ? { ...p, status, ...(status === 'ended' ? { endsAt: new Date().toISOString() } : {}) } : p,
+      );
       await wait(undefined);
     },
   };

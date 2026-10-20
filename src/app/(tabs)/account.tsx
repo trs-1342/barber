@@ -36,7 +36,7 @@ export default function AccountScreen() {
       </Card>
 
       <Card padded={false}>
-        <Row icon="megaphone-outline" label="Reklam ve öne çıkarma" href="/promotions" />
+        <Row icon="bar-chart-outline" label="Satış raporları" href="/reports" />
         <Row icon="settings-outline" label="Ayarlar ve firma bilgileri" href="/settings" />
         <Row icon="log-out-outline" label="Çıkış yap" onPress={signOut} danger last />
       </Card>
