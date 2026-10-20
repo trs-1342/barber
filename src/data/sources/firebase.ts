@@ -1,5 +1,12 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import {
+  createUserWithEmailAndPassword,
+  getAuth,
+  signInWithEmailAndPassword,
+  signOut,
+} from 'firebase/auth';
+import {
+  addDoc,
   collection,
   doc,
   getDoc,
@@ -8,21 +15,26 @@ import {
   orderBy,
   query,
   runTransaction,
+  setDoc,
+  updateDoc,
+  where,
 } from 'firebase/firestore';
 
 import { env } from '@/lib/env';
+import { canTransition } from '@/lib/orders';
 
-import { filterShops, NotFoundError, SlotTakenError, type Repository } from '../repository';
-import type { Appointment, Shop } from '../types';
+import { AuthError, InvalidTransitionError, NotFoundError, type Repository } from '../repository';
+import type { Order, Product, Promotion, Supplier } from '../types';
 
 /**
- * Firestore şeması:
- *   shops/{shopId}                    → Shop (services ve staff gömülü dizi)
- *   appointments/{id}                 → Appointment
- *   slotLocks/{shopId_staffId_ISO}    → çift rezervasyonu engelleyen kilit belgeleri
+ * Firestore şeması (kurallar: firebase/firestore.rules):
+ *   suppliers/{uid}                       → Supplier
+ *   suppliers/{uid}/products/{id}         → Product
+ *   suppliers/{uid}/promotions/{id}       → Promotion
+ *   orders/{id}                           → Order + supplierId (salon uygulaması yazar)
  */
-function db() {
-  const app = getApps().length
+function app() {
+  return getApps().length
     ? getApp()
     : initializeApp({
         apiKey: env.firebase.apiKey,
@@ -32,67 +44,106 @@ function db() {
         messagingSenderId: env.firebase.messagingSenderId,
         appId: env.firebase.appId,
       });
-  return getFirestore(app);
+}
+const db = () => getFirestore(app());
+const auth = () => getAuth(app());
+
+function uid() {
+  const u = auth().currentUser;
+  if (!u) throw new AuthError('Oturum açılmamış');
+  return u.uid;
 }
 
-const SLOT_MIN = 15;
+const withId = <T,>(d: { id: string; data(): unknown }) => ({ ...(d.data() as Omit<T, 'id'>), id: d.id }) as T;
 
-/** Randevunun kapladığı her 15 dakikalık dilim için deterministik kilit kimliği. */
-function lockIds(a: { shopId: string; staffId: string | null; start: string; durationMin: number }) {
-  if (!a.staffId) return [];
-  const ids: string[] = [];
-  const start = Date.parse(a.start);
-  for (let m = 0; m < a.durationMin; m += SLOT_MIN) {
-    ids.push(`${a.shopId}_${a.staffId}_${new Date(start + m * 60_000).toISOString()}`);
-  }
-  return ids;
+function authMessage(e: unknown) {
+  const code = (e as { code?: string }).code ?? '';
+  if (code.includes('email-already-in-use')) return 'Bu e-posta zaten kayıtlı';
+  if (code.includes('weak-password')) return 'Şifre en az 6 karakter olmalı';
+  if (code.includes('invalid')) return 'E-posta veya şifre hatalı';
+  return (e as Error).message;
 }
 
 export function createFirebaseRepository(): Repository {
   return {
-    async listShops(params) {
-      const snap = await getDocs(collection(db(), 'shops'));
-      const shops = snap.docs.map((d) => ({ ...(d.data() as Omit<Shop, 'id'>), id: d.id }));
-      return filterShops(shops, params);
+    async signIn({ email, password }) {
+      try {
+        const cred = await signInWithEmailAndPassword(auth(), email.trim(), password);
+        const snap = await getDoc(doc(db(), 'suppliers', cred.user.uid));
+        if (!snap.exists()) throw new NotFoundError('Tedarikçi hesabı');
+        return withId<Supplier>(snap);
+      } catch (e) {
+        if (e instanceof NotFoundError) throw e;
+        throw new AuthError(authMessage(e));
+      }
     },
 
-    async getShop(id) {
-      const snap = await getDoc(doc(db(), 'shops', id));
-      if (!snap.exists()) throw new NotFoundError('İşletme');
-      return { ...(snap.data() as Omit<Shop, 'id'>), id: snap.id };
+    async register({ password, ...profile }) {
+      try {
+        const cred = await createUserWithEmailAndPassword(auth(), profile.email.trim(), password);
+        const supplier: Supplier = { ...profile, id: cred.user.uid };
+        const { id, ...data } = supplier;
+        await setDoc(doc(db(), 'suppliers', id), data);
+        return supplier;
+      } catch (e) {
+        throw new AuthError(authMessage(e));
+      }
     },
 
-    async listAppointments() {
-      const q = query(collection(db(), 'appointments'), orderBy('start', 'desc'));
-      const snap = await getDocs(q);
-      return snap.docs.map((d) => ({ ...(d.data() as Omit<Appointment, 'id'>), id: d.id }));
+    signOut: () => signOut(auth()),
+
+    async updateSupplier(patch) {
+      const ref = doc(db(), 'suppliers', uid());
+      await updateDoc(ref, patch);
+      return withId<Supplier>(await getDoc(ref));
     },
 
-    async createAppointment(input) {
-      const firestore = db();
-      const ref = doc(collection(firestore, 'appointments'));
-      const locks = lockIds(input).map((id) => doc(firestore, 'slotLocks', id));
-
-      // İşlem (transaction): kilitlerden biri varsa başka biri o saati az önce almıştır.
-      await runTransaction(firestore, async (tx) => {
-        const existing = await Promise.all(locks.map((l) => tx.get(l)));
-        if (existing.some((s) => s.exists())) throw new SlotTakenError();
-        tx.set(ref, { ...input, status: 'pending' });
-        locks.forEach((l) => tx.set(l, { appointmentId: ref.id }));
-      });
-      return { ...input, id: ref.id, status: 'pending' };
+    async listOrders() {
+      const q = query(collection(db(), 'orders'), where('supplierId', '==', uid()), orderBy('createdAt', 'desc'));
+      return (await getDocs(q)).docs.map((d) => withId<Order>(d));
     },
 
-    async cancelAppointment(id) {
-      const firestore = db();
-      const ref = doc(firestore, 'appointments', id);
-      await runTransaction(firestore, async (tx) => {
+    async updateOrderStatus(id, status) {
+      const ref = doc(db(), 'orders', id);
+      // İşlem (transaction): okuma ile yazma arasında başkası durumu değiştirirse tekrar denenir.
+      return runTransaction(db(), async (tx) => {
         const snap = await tx.get(ref);
-        if (!snap.exists()) throw new NotFoundError('Randevu');
-        tx.update(ref, { status: 'cancelled' });
-        lockIds(snap.data() as Appointment).forEach((l) => tx.delete(doc(firestore, 'slotLocks', l)));
+        if (!snap.exists()) throw new NotFoundError('Sipariş');
+        const cur = withId<Order>(snap);
+        if (!canTransition(cur.status, status)) throw new InvalidTransitionError();
+        tx.update(ref, { status });
+        return { ...cur, status };
       });
+    },
+
+    async listProducts() {
+      const snap = await getDocs(collection(db(), 'suppliers', uid(), 'products'));
+      return snap.docs.map((d) => withId<Product>(d));
+    },
+
+    async saveProduct(input, id) {
+      const col = collection(db(), 'suppliers', uid(), 'products');
+      if (id) {
+        await setDoc(doc(col, id), input);
+        return { ...input, id };
+      }
+      const ref = await addDoc(col, input);
+      return { ...input, id: ref.id };
+    },
+
+    async listPromotions() {
+      const snap = await getDocs(collection(db(), 'suppliers', uid(), 'promotions'));
+      return snap.docs.map((d) => withId<Promotion>(d));
+    },
+
+    async createPromotion(input) {
+      const data = { ...input, status: 'active' as const, impressions: 0, clicks: 0 };
+      const ref = await addDoc(collection(db(), 'suppliers', uid(), 'promotions'), data);
+      return { ...data, id: ref.id };
+    },
+
+    async setPromotionStatus(id, status) {
+      await updateDoc(doc(db(), 'suppliers', uid(), 'promotions', id), { status });
     },
   };
 }
-

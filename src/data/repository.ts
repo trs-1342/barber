@@ -1,27 +1,30 @@
-import type { Appointment, Shop } from './types';
+import type { Order, OrderStatus, Product, Promotion, Supplier } from './types';
 
-export type ShopQuery = { query?: string; tag?: string };
-
-export type NewAppointment = Omit<Appointment, 'id' | 'status'>;
+export type ProductInput = Omit<Product, 'id'>;
+export type PromotionInput = Omit<Promotion, 'id' | 'impressions' | 'clicks' | 'status'>;
+export type Credentials = { email: string; password: string };
+export type Registration = Credentials & Omit<Supplier, 'id' | 'email'>;
 
 /**
  * Ekranların bildiği tek veri sözleşmesi. Firebase, Supabase ve sahte veri
  * kaynakları bu arayüzü uygular; ekranlar hangisinin kullanıldığını bilmez.
  */
 export interface Repository {
-  listShops(params?: ShopQuery, signal?: AbortSignal): Promise<Shop[]>;
-  getShop(id: string, signal?: AbortSignal): Promise<Shop>;
-  listAppointments(signal?: AbortSignal): Promise<Appointment[]>;
-  /** Aynı personelin aynı aralığına ikinci randevu yazılırsa `SlotTakenError` fırlatır. */
-  createAppointment(input: NewAppointment): Promise<Appointment>;
-  cancelAppointment(id: string): Promise<void>;
-}
+  signIn(c: Credentials): Promise<Supplier>;
+  register(r: Registration): Promise<Supplier>;
+  signOut(): Promise<void>;
+  updateSupplier(patch: Partial<Omit<Supplier, 'id'>>): Promise<Supplier>;
 
-export class SlotTakenError extends Error {
-  constructor() {
-    super('Bu saat az önce doldu. Lütfen başka bir saat seçin.');
-    this.name = 'SlotTakenError';
-  }
+  listOrders(signal?: AbortSignal): Promise<Order[]>;
+  /** Geçersiz durum geçişinde `InvalidTransitionError` fırlatır. */
+  updateOrderStatus(id: string, status: OrderStatus): Promise<Order>;
+
+  listProducts(signal?: AbortSignal): Promise<Product[]>;
+  saveProduct(input: ProductInput, id?: string): Promise<Product>;
+
+  listPromotions(signal?: AbortSignal): Promise<Promotion[]>;
+  createPromotion(input: PromotionInput): Promise<Promotion>;
+  setPromotionStatus(id: string, status: 'active' | 'paused'): Promise<void>;
 }
 
 export class NotFoundError extends Error {
@@ -31,20 +34,16 @@ export class NotFoundError extends Error {
   }
 }
 
-const normalize = (s: string) => s.toLocaleLowerCase('tr-TR').trim();
-
-/** Kaynaklar arasında ortak arama/filtre mantığı (istemci tarafı). */
-export function filterShops(shops: Shop[], { query, tag }: ShopQuery = {}) {
-  const q = normalize(query ?? '');
-  return shops.filter(
-    (s) =>
-      (!q || normalize(s.name).includes(q) || normalize(s.district).includes(q)) &&
-      (!tag || s.tags.includes(tag)),
-  );
+export class InvalidTransitionError extends Error {
+  constructor() {
+    super('Sipariş bu duruma geçirilemez. Liste güncel olmayabilir; yenileyip tekrar deneyin.');
+    this.name = 'InvalidTransitionError';
+  }
 }
 
-export function overlaps(a: { start: string; durationMin: number }, b: { start: string; durationMin: number }) {
-  const aStart = Date.parse(a.start);
-  const bStart = Date.parse(b.start);
-  return aStart < bStart + b.durationMin * 60_000 && bStart < aStart + a.durationMin * 60_000;
+export class AuthError extends Error {
+  constructor(message = 'E-posta veya şifre hatalı') {
+    super(message);
+    this.name = 'AuthError';
+  }
 }

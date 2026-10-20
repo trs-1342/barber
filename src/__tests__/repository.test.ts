@@ -1,50 +1,38 @@
-import { filterShops, overlaps, SlotTakenError } from '@/data/repository';
-import { shops } from '@/data/seed';
+import { AuthError, InvalidTransitionError } from '@/data/repository';
 import { createMockRepository } from '@/data/sources/mock';
 
-describe('filterShops', () => {
-  it('Türkçe büyük/küçük harfe duyarsız arar', () => {
-    expect(filterShops(shops, { query: 'ÜSKÜDAR' }).map((s) => s.id)).toEqual(['s4']);
-    expect(filterShops(shops, { query: 'klasik' }).map((s) => s.id)).toEqual(['s1']);
-  });
-
-  it('etikete göre süzer', () => {
-    expect(filterShops(shops, { tag: 'Boya' }).every((s) => s.tags.includes('Boya'))).toBe(true);
-  });
-});
-
-it('overlaps yarı açık aralık kullanır', () => {
-  const a = { start: '2030-01-01T10:00:00.000Z', durationMin: 30 };
-  expect(overlaps(a, { start: '2030-01-01T10:29:00.000Z', durationMin: 10 })).toBe(true);
-  expect(overlaps(a, { start: '2030-01-01T10:30:00.000Z', durationMin: 10 })).toBe(false);
-});
+const fresh = () => createMockRepository(false);
 
 describe('mock repository', () => {
-  const input = {
-    shopId: 's1',
-    shopName: 'Klasik Makas',
-    staffId: 'st1',
-    staffName: 'Ahmet Yılmaz',
-    services: [],
-    start: '2031-05-05T09:00:00.000Z',
-    durationMin: 30,
-    total: 350,
-  };
-
-  it('aynı personele çakışan ikinci randevuyu reddeder', async () => {
-    const repo = createMockRepository(false);
-    await expect(repo.createAppointment(input)).resolves.toMatchObject({ status: 'pending' });
-    await expect(repo.createAppointment(input)).rejects.toBeInstanceOf(SlotTakenError);
+  it('geçersiz giriş bilgisini reddeder', async () => {
+    await expect(fresh().signIn({ email: 'yanlis', password: '123456' })).rejects.toBeInstanceOf(AuthError);
+    await expect(fresh().signIn({ email: 'a@b.com', password: '123' })).rejects.toBeInstanceOf(AuthError);
   });
 
-  it('iptal edilen randevunun saati yeniden alınabilir', async () => {
-    const repo = createMockRepository(false);
-    const a = await repo.createAppointment(input);
-    await repo.cancelAppointment(a.id);
-    await expect(repo.createAppointment(input)).resolves.toBeDefined();
+  it('oturum açmadan hesap güncellenemez', async () => {
+    await expect(fresh().updateSupplier({ city: 'Ankara' })).rejects.toBeInstanceOf(AuthError);
   });
 
-  it('olmayan işletme için hata verir', async () => {
-    await expect(createMockRepository(false).getShop('yok')).rejects.toThrow('bulunamadı');
+  it('siparişi kurala uygun ilerletir, geçersiz geçişi reddeder', async () => {
+    const repo = fresh();
+    const order = (await repo.listOrders()).find((o) => o.status === 'new')!;
+    await expect(repo.updateOrderStatus(order.id, 'delivered')).rejects.toBeInstanceOf(InvalidTransitionError);
+    expect((await repo.updateOrderStatus(order.id, 'preparing')).status).toBe('preparing');
+    expect((await repo.updateOrderStatus(order.id, 'shipped')).status).toBe('shipped');
+    await expect(repo.updateOrderStatus(order.id, 'cancelled')).rejects.toBeInstanceOf(InvalidTransitionError);
+  });
+
+  it('siparişleri yeniden eskiye sıralar', async () => {
+    const list = await fresh().listOrders();
+    expect(list.every((o, i) => i === 0 || list[i - 1]!.createdAt >= o.createdAt)).toBe(true);
+  });
+
+  it('yeni ürün ekler ve mevcut ürünü günceller', async () => {
+    const repo = fresh();
+    const input = { name: 'Test', brand: 'B', category: 'C', price: 10, stock: 1, unit: 'adet', active: true, featured: false };
+    const created = await repo.saveProduct(input);
+    expect((await repo.listProducts())[0]!.id).toBe(created.id);
+    await repo.saveProduct({ ...input, stock: 99 }, created.id);
+    expect((await repo.listProducts()).find((p) => p.id === created.id)!.stock).toBe(99);
   });
 });

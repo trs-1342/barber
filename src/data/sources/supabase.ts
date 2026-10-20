@@ -1,14 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient, type PostgrestError, type SupabaseClient } from '@supabase/supabase-js';
 
 import { env } from '@/lib/env';
 
-import { filterShops, NotFoundError, SlotTakenError, type Repository } from '../repository';
-import type { Appointment, Shop } from '../types';
+import { AuthError, InvalidTransitionError, NotFoundError, type Repository } from '../repository';
+import type { Order, Product, Promotion, Supplier } from '../types';
 
 /**
- * Tablo şeması `supabase/schema.sql` dosyasında. Çift rezervasyonu veritabanı engeller
- * (EXCLUDE kısıtı); ihlal 23P01 koduyla döner.
+ * Şema: supabase/schema.sql. Satırlar RLS ile oturumdaki tedarikçiye sınırlıdır;
+ * sipariş durum geçişlerini veritabanı tetikleyicisi doğrular (geçersizse 'P0001').
  */
 let client: SupabaseClient | undefined;
 function sb() {
@@ -18,95 +18,105 @@ function sb() {
   return client;
 }
 
-type AppointmentRow = {
-  id: string;
-  shop_id: string;
-  shop_name: string;
-  staff_id: string | null;
-  staff_name: string;
-  services: Appointment['services'];
-  start_at: string;
-  duration_min: number;
-  total: number;
-  status: Appointment['status'];
-};
+// Veritabanı snake_case, uygulama camelCase kullanır.
+const toCamel = (s: string) => s.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
+const toSnake = (s: string) => s.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+const mapKeys = (o: object, f: (k: string) => string) =>
+  Object.fromEntries(Object.entries(o).map(([k, v]) => [f(k), v]));
+const fromRow = <T,>(r: object) => mapKeys(r, toCamel) as T;
+const toRow = (o: object) => mapKeys(o, toSnake);
 
-const toAppointment = (r: AppointmentRow): Appointment => ({
-  id: r.id,
-  shopId: r.shop_id,
-  shopName: r.shop_name,
-  staffId: r.staff_id,
-  staffName: r.staff_name,
-  services: r.services,
-  start: r.start_at,
-  durationMin: r.duration_min,
-  total: r.total,
-  status: r.status,
-});
+type Row = Record<string, unknown>;
 
-type ShopRow = Omit<Shop, 'reviewCount' | 'opensAt' | 'closesAt'> & {
-  review_count: number;
-  opens_at: number;
-  closes_at: number;
-};
+function check<T = Row>({ data, error }: { data: unknown; error: PostgrestError | null }): T {
+  if (error?.code === 'P0001') throw new InvalidTransitionError();
+  if (error) throw error;
+  if (data === null) throw new NotFoundError();
+  return data as T;
+}
 
-const toShop = ({ review_count, opens_at, closes_at, ...r }: ShopRow): Shop => ({
-  ...r,
-  reviewCount: review_count,
-  opensAt: opens_at,
-  closesAt: closes_at,
-});
+async function uid() {
+  const { data } = await sb().auth.getUser();
+  if (!data.user) throw new AuthError('Oturum açılmamış');
+  return data.user.id;
+}
 
 export function createSupabaseRepository(): Repository {
   return {
-    async listShops(params, signal) {
-      let q = sb().from('shops').select('*');
+    async signIn({ email, password }) {
+      const { data, error } = await sb().auth.signInWithPassword({ email: email.trim(), password });
+      if (error || !data.user) throw new AuthError();
+      const row = check(await sb().from('suppliers').select('*').eq('id', data.user.id).maybeSingle());
+      return fromRow<Supplier>(row);
+    },
+
+    async register({ password, ...profile }) {
+      const { data, error } = await sb().auth.signUp({ email: profile.email.trim(), password });
+      if (error || !data.user) throw new AuthError(error?.message ?? 'Kayıt başarısız');
+      const row = check(
+        await sb()
+          .from('suppliers')
+          .insert(toRow({ ...profile, id: data.user.id }))
+          .select()
+          .single(),
+      );
+      return fromRow<Supplier>(row);
+    },
+
+    async signOut() {
+      await sb().auth.signOut();
+    },
+
+    async updateSupplier(patch) {
+      const row = check(await sb().from('suppliers').update(toRow(patch)).eq('id', await uid()).select().single());
+      return fromRow<Supplier>(row);
+    },
+
+    async listOrders(signal) {
+      let q = sb().from('orders').select('*').order('created_at', { ascending: false });
       if (signal) q = q.abortSignal(signal);
-      const { data, error } = await q;
-      if (error) throw error;
-      return filterShops((data as ShopRow[]).map(toShop), params);
+      return check<Row[]>(await q).map((r) => fromRow<Order>(r));
     },
 
-    async getShop(id, signal) {
-      let q = sb().from('shops').select('*').eq('id', id);
+    async updateOrderStatus(id, status) {
+      const row = check(await sb().from('orders').update({ status }).eq('id', id).select().maybeSingle());
+      return fromRow<Order>(row);
+    },
+
+    async listProducts(signal) {
+      let q = sb().from('products').select('*').order('name');
       if (signal) q = q.abortSignal(signal);
-      const { data, error } = await q.maybeSingle();
-      if (error) throw error;
-      if (!data) throw new NotFoundError('İşletme');
-      return toShop(data as ShopRow);
+      return check<Row[]>(await q).map((r) => fromRow<Product>(r));
     },
 
-    async listAppointments(signal) {
-      let q = sb().from('appointments').select('*').order('start_at', { ascending: false });
+    async saveProduct(input, id) {
+      const row = toRow({ ...input, supplierId: await uid() });
+      const res = id
+        ? await sb().from('products').update(row).eq('id', id).select().single()
+        : await sb().from('products').insert(row).select().single();
+      const { supplierId: _s, ...product } = fromRow<Product & { supplierId: string }>(check(res));
+      return product;
+    },
+
+    async listPromotions(signal) {
+      let q = sb().from('promotions').select('*').order('starts_at', { ascending: false });
       if (signal) q = q.abortSignal(signal);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data as AppointmentRow[]).map(toAppointment);
+      return check<Row[]>(await q).map((r) => fromRow<Promotion>(r));
     },
 
-    async createAppointment(input) {
-      const { data, error } = await sb()
-        .from('appointments')
-        .insert({
-          shop_id: input.shopId,
-          shop_name: input.shopName,
-          staff_id: input.staffId,
-          staff_name: input.staffName,
-          services: input.services,
-          start_at: input.start,
-          duration_min: input.durationMin,
-          total: input.total,
-        })
-        .select()
-        .single();
-      if (error?.code === '23P01') throw new SlotTakenError();
-      if (error) throw error;
-      return toAppointment(data as AppointmentRow);
+    async createPromotion(input) {
+      const row = check(
+        await sb()
+          .from('promotions')
+          .insert(toRow({ ...input, supplierId: await uid() }))
+          .select()
+          .single(),
+      );
+      return fromRow<Promotion>(row);
     },
 
-    async cancelAppointment(id) {
-      const { error } = await sb().from('appointments').update({ status: 'cancelled' }).eq('id', id);
-      if (error) throw error;
+    async setPromotionStatus(id, status) {
+      check(await sb().from('promotions').update({ status }).eq('id', id).select().single());
     },
   };
 }

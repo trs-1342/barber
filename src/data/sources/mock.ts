@@ -1,6 +1,8 @@
-import { filterShops, NotFoundError, overlaps, SlotTakenError, type Repository } from '../repository';
-import { seedAppointments, shops } from '../seed';
-import type { Appointment } from '../types';
+import { canTransition } from '@/lib/orders';
+
+import { AuthError, InvalidTransitionError, NotFoundError, type Repository } from '../repository';
+import * as seed from '../seed';
+import type { Order, Product, Promotion, Supplier } from '../types';
 
 /** Ağ olmadan çalışan kaynak: demo, test ve bağlantı yokken yedek. */
 const LATENCY_MS = 250;
@@ -16,37 +18,62 @@ function delay<T>(value: T, signal?: AbortSignal): Promise<T> {
 }
 
 export function createMockRepository(latency = true): Repository {
-  let appointments: Appointment[] = [...seedAppointments];
+  let supplier: Supplier | null = null;
+  let orders: Order[] = seed.orders.map((o) => ({ ...o }));
+  let products: Product[] = seed.products.map((p) => ({ ...p }));
+  let promotions: Promotion[] = seed.promotions.map((p) => ({ ...p }));
   const wait = <T,>(v: T, signal?: AbortSignal) => (latency ? delay(v, signal) : Promise.resolve(v));
+  const me = () => {
+    if (!supplier) throw new AuthError('Oturum açılmamış');
+    return supplier;
+  };
 
   return {
-    listShops: (params, signal) => wait(filterShops(shops, params), signal),
-
-    async getShop(id, signal) {
-      const shop = shops.find((s) => s.id === id);
-      if (!shop) throw new NotFoundError('İşletme');
-      return wait(shop, signal);
+    async signIn({ email, password }) {
+      if (!email.includes('@') || password.length < 6) throw new AuthError();
+      supplier = { ...seed.supplier, email: email.trim().toLowerCase() };
+      return wait(supplier);
+    },
+    async register({ password, ...rest }) {
+      if (password.length < 6) throw new AuthError('Şifre en az 6 karakter olmalı');
+      supplier = { ...rest, id: `sup${Date.now()}`, email: rest.email.trim().toLowerCase() } as Supplier;
+      return wait(supplier);
+    },
+    async signOut() {
+      supplier = null;
+    },
+    async updateSupplier(patch) {
+      supplier = { ...me(), ...patch };
+      return wait(supplier);
     },
 
-    listAppointments: (signal) => wait(appointments, signal),
+    listOrders: (signal) => wait([...orders].sort((a, b) => b.createdAt.localeCompare(a.createdAt)), signal),
+    async updateOrderStatus(id, status) {
+      const cur = orders.find((o) => o.id === id);
+      if (!cur) throw new NotFoundError('Sipariş');
+      if (!canTransition(cur.status, status)) throw new InvalidTransitionError();
+      const next = { ...cur, status };
+      orders = orders.map((o) => (o.id === id ? next : o));
+      return wait(next);
+    },
 
-    async createAppointment(input) {
-      const clash = appointments.some(
-        (a) =>
-          a.status !== 'cancelled' &&
-          a.shopId === input.shopId &&
-          a.staffId !== null &&
-          a.staffId === input.staffId &&
-          overlaps(a, input),
-      );
-      if (clash) throw new SlotTakenError();
-      const created: Appointment = { ...input, id: `a${Date.now()}`, status: 'pending' };
-      appointments = [created, ...appointments];
+    listProducts: (signal) => wait(products, signal),
+    async saveProduct(input, id) {
+      if (id && !products.some((p) => p.id === id)) throw new NotFoundError('Ürün');
+      const saved: Product = { ...input, id: id ?? `p${Date.now()}` };
+      products = id ? products.map((p) => (p.id === id ? saved : p)) : [saved, ...products];
+      return wait(saved);
+    },
+
+    listPromotions: (signal) => wait(promotions, signal),
+    async createPromotion(input) {
+      const created: Promotion = { ...input, id: `pr${Date.now()}`, status: 'active', impressions: 0, clicks: 0 };
+      promotions = [created, ...promotions];
       return wait(created);
     },
-
-    async cancelAppointment(id) {
-      appointments = appointments.map((a) => (a.id === id ? { ...a, status: 'cancelled' } : a));
+    async setPromotionStatus(id, status) {
+      if (!promotions.some((p) => p.id === id)) throw new NotFoundError('Kampanya');
+      promotions = promotions.map((p) => (p.id === id ? { ...p, status } : p));
       await wait(undefined);
     },
   };

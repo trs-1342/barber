@@ -1,87 +1,116 @@
-import { FlashList } from '@shopify/flash-list';
 import { router } from 'expo-router';
-import { useCallback, useDeferredValue, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useMemo } from 'react';
+import { StyleSheet, View } from 'react-native';
 
-import { ShopCard } from '@/components/shop-card';
-import { Chip, EmptyState, ErrorState, Input, Screen, Skeleton, Text } from '@/components/ui';
-import { repo } from '@/data';
-import { CATEGORIES } from '@/data/categories';
-import { useQuery } from '@/hooks/use-query';
-import { spacing, useColors } from '@/theme';
+import { BarChart, OrderRow, SectionTitle, StatCard } from '@/components/supplier';
+import { Button, Card, ErrorState, Icon, Screen, Skeleton, Text } from '@/components/ui';
+import { formatDay, formatPrice } from '@/lib/format';
+import { revenueByDay, summarize } from '@/lib/orders';
+import { orders, products, useSession } from '@/store';
+import { spacing } from '@/theme';
 
-export default function DiscoverScreen() {
-  const colors = useColors();
-  const [query, setQuery] = useState('');
-  const [tag, setTag] = useState<string>();
-  // Yazarken her tuşta filtrelemeyi ertele; giriş akıcı kalır.
-  const deferredQuery = useDeferredValue(query);
+const LOW_STOCK = 15;
 
-  const { data, error, loading, refreshing, refetch } = useQuery(
-    (signal) => repo.listShops({ query: deferredQuery, tag }, signal),
-    [deferredQuery, tag],
-  );
+export default function DashboardScreen() {
+  const user = useSession();
+  const o = orders.useList();
+  const p = products.useList();
 
-  const openShop = useCallback((id: string) => router.push({ pathname: '/shop/[id]', params: { id } }), []);
+  const stats = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todays = o.items.filter((x) => Date.parse(x.createdAt) >= today.getTime());
+    return { all: summarize(o.items), today: summarize(todays), week: revenueByDay(o.items, 7) };
+  }, [o.items]);
 
-  const header = (
-    <View style={styles.header}>
-      <Text variant="title">Keşfet</Text>
-      <Input
-        icon="search"
-        placeholder="İşletme veya semt ara"
-        value={query}
-        onChangeText={setQuery}
-        returnKeyType="search"
-        autoCorrect={false}
-        clearButtonMode="while-editing"
-      />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-        <Chip label="Tümü" selected={!tag} onPress={() => setTag(undefined)} />
-        {CATEGORIES.map((t) => (
-          <Chip key={t} label={t} selected={tag === t} onPress={() => setTag(t === tag ? undefined : t)} />
-        ))}
-      </ScrollView>
-    </View>
-  );
+  const lowStock = useMemo(() => p.items.filter((x) => x.active && x.stock <= LOW_STOCK), [p.items]);
+  const latest = o.items.slice(0, 4);
+  const openOrder = useCallback((id: string) => router.push({ pathname: '/order/[id]', params: { id } }), []);
+
+  if (o.error) return <ErrorState error={o.error} onRetry={orders.load} />;
 
   return (
-    <Screen scroll={false}>
-      <FlashList
-        data={loading && !data ? [] : (data ?? [])}
-        keyExtractor={(s) => s.id}
-        renderItem={({ item }) => <ShopCard shop={item} onPress={openShop} />}
-        ItemSeparatorComponent={Separator}
-        ListHeaderComponent={header}
-        ListEmptyComponent={
-          loading ? (
-            <View style={styles.gap}>
-              {[0, 1, 2].map((i) => (
-                <Skeleton key={i} height={88} rounded={16} />
-              ))}
+    <Screen refreshing={o.loading && o.loaded} onRefresh={() => Promise.all([orders.load(), products.load()])}>
+      <View>
+        <Text color="textMuted">Hoş geldiniz</Text>
+        <Text variant="title" numberOfLines={1}>
+          {user?.companyName}
+        </Text>
+      </View>
+
+      {!o.loaded ? (
+        <View style={styles.grid}>
+          {[0, 1, 2, 3].map((i) => (
+            <View key={i} style={styles.skel}>
+              <Skeleton height={96} rounded={16} />
             </View>
-          ) : error ? (
-            <ErrorState error={error} onRetry={refetch} />
-          ) : (
-            <EmptyState icon="cut-outline" title="Sonuç yok" message="Farklı bir arama deneyin." />
-          )
-        }
-        contentContainerStyle={styles.list}
-        keyboardDismissMode="on-drag"
-        keyboardShouldPersistTaps="handled"
-        refreshing={refreshing}
-        onRefresh={refetch}
-        style={{ backgroundColor: colors.bg }}
+          ))}
+        </View>
+      ) : (
+        <View style={styles.grid}>
+          <StatCard icon="cash-outline" label="Bugünkü satış" value={formatPrice(stats.today.revenue)} hint={`${stats.today.orderCount} sipariş`} />
+          <StatCard
+            icon="time-outline"
+            label="Onay bekleyen"
+            value={String(stats.all.pending)}
+            hint="Dokun ve yönet"
+            tone="warning"
+            onPress={() => router.navigate('/orders')}
+          />
+          <StatCard icon="storefront-outline" label="Aktif salon" value={String(stats.all.salonCount)} tone="success" />
+          <StatCard icon="basket-outline" label="Ort. sepet" value={formatPrice(stats.all.avgBasket)} />
+        </View>
+      )}
+
+      <Card style={styles.gap}>
+        <SectionTitle
+          title="Son 7 gün"
+          action={
+            <Text variant="subheading" tabular>
+              {formatPrice(stats.week.reduce((s, d) => s + d.total, 0))}
+            </Text>
+          }
+        />
+        <BarChart
+          data={stats.week.map((d) => ({
+            label: formatDay(d.day),
+            value: d.total,
+            a11y: `${formatDay(d.day)}: ${formatPrice(d.total)}`,
+          }))}
+        />
+      </Card>
+
+      {lowStock.length > 0 && (
+        <Card style={styles.gap} onPress={() => router.navigate('/products')}>
+          <View style={styles.row}>
+            <Icon name="warning-outline" color="danger" />
+            <Text variant="subheading" style={styles.flex}>
+              {lowStock.length} üründe stok azaldı
+            </Text>
+            <Icon name="chevron-forward" color="textMuted" />
+          </View>
+          <Text color="textMuted" numberOfLines={2}>
+            {lowStock.map((x) => `${x.name} (${x.stock})`).join(', ')}
+          </Text>
+        </Card>
+      )}
+
+      <SectionTitle
+        title="Son siparişler"
+        action={<Button title="Tümü" variant="ghost" onPress={() => router.navigate('/orders')} style={styles.small} />}
       />
+      {latest.map((x) => (
+        <OrderRow key={x.id} order={x} onPress={openOrder} />
+      ))}
     </Screen>
   );
 }
 
-const Separator = () => <View style={{ height: spacing.md }} />;
-
 const styles = StyleSheet.create({
-  header: { gap: spacing.md, marginBottom: spacing.lg },
-  chips: { gap: spacing.sm },
-  list: { padding: spacing.lg },
+  flex: { flex: 1 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  skel: { flex: 1, minWidth: '45%' },
   gap: { gap: spacing.md },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  small: { minHeight: 36, paddingHorizontal: spacing.md },
 });

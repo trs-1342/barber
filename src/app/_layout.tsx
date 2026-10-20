@@ -3,6 +3,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
+import { useSession } from '@/store';
 import { useColors, useIsDark } from '@/theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -10,6 +11,7 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const dark = useIsDark();
   const colors = useColors();
+  const user = useSession();
   const base = dark ? DarkTheme : DefaultTheme;
 
   useEffect(() => {
@@ -31,9 +33,17 @@ export default function RootLayout() {
       }}>
       <StatusBar style={dark ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerBackButtonDisplayMode: 'minimal', headerShadowVisible: false }}>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="shop/[id]" options={{ title: '' }} />
-        <Stack.Screen name="booking/[shopId]" options={{ title: 'Randevu Al' }} />
+        {/* Oturum yoksa yalnızca giriş ekranlarına erişilir; korumalı rotalar otomatik yönlenir. */}
+        <Stack.Protected guard={!user}>
+          <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
+        </Stack.Protected>
+        <Stack.Protected guard={!!user}>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="order/[id]" options={{ title: 'Sipariş' }} />
+          <Stack.Screen name="product/[id]" options={{ title: 'Ürün', presentation: 'modal' }} />
+          <Stack.Screen name="promotions" options={{ title: 'Reklam ve Öne Çıkarma' }} />
+          <Stack.Screen name="settings" options={{ title: 'Ayarlar' }} />
+        </Stack.Protected>
       </Stack>
     </ThemeProvider>
   );

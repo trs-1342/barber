@@ -1,48 +1,55 @@
 export type ID = string;
 
-export type Service = {
+export type Supplier = {
+  id: ID;
+  companyName: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  city: string;
+  taxNumber: string;
+};
+
+export type Product = {
   id: ID;
   name: string;
-  durationMin: number;
-  price: number; // TL, kuruşsuz
+  brand: string;
   category: string;
+  price: number; // TL, birim fiyat
+  stock: number;
+  unit: string; // adet, koli, lt…
+  active: boolean;
+  featured: boolean;
 };
 
-export type Staff = {
-  id: ID;
-  name: string;
-  title: string;
-  avatar?: string;
-  rating: number;
-};
+export type OrderStatus = 'new' | 'preparing' | 'shipped' | 'delivered' | 'cancelled';
 
-export type Shop = {
-  id: ID;
-  name: string;
-  district: string;
-  address: string;
-  rating: number;
-  reviewCount: number;
-  cover?: string;
-  tags: string[];
-  /** Çalışma saatleri, 24 saat biçiminde. */
-  opensAt: number;
-  closesAt: number;
-  services: Service[];
-  staff: Staff[];
-};
+export type OrderItem = { productId: ID; name: string; qty: number; unitPrice: number };
 
-export type AppointmentStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'noshow';
-
-export type Appointment = {
+export type Order = {
   id: ID;
-  shopId: ID;
-  shopName: string;
-  staffId: ID | null; // null = "Farketmez"
-  staffName: string;
-  services: Service[];
-  start: string; // ISO
-  durationMin: number;
+  code: string; // kullanıcıya gösterilen kısa sipariş no
+  salonId: ID;
+  salonName: string;
+  salonDistrict: string;
+  items: OrderItem[];
   total: number;
-  status: AppointmentStatus;
+  status: OrderStatus;
+  createdAt: string; // ISO
+  note?: string;
+};
+
+export type PromotionStatus = 'active' | 'paused' | 'ended';
+
+export type Promotion = {
+  id: ID;
+  productId: ID;
+  productName: string;
+  placement: 'featured' | 'banner' | 'search';
+  dailyBudget: number;
+  startsAt: string;
+  endsAt: string;
+  status: PromotionStatus;
+  impressions: number;
+  clicks: number;
 };

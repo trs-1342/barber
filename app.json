@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "io.github.trs1342.barber",
+      "bundleIdentifier": "com.barberapp.trs1342",
       "supportsTablet": false
     },
     "android": {
@@ -20,7 +20,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "io.github.trs1342.barber"
+      "package": "com.barberapp.trs1342"
     },
     "web": {
       "output": "server",
