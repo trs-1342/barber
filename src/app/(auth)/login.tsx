@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
 
@@ -67,9 +68,7 @@ export default function LoginScreen() {
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Screen edges={['top', 'bottom']} contentStyle={styles.content}>
         <View style={styles.brand}>
-          <View style={[styles.logo, { backgroundColor: colors.primary }]}>
-            <Icon name="cube" size={28} color="primaryText" />
-          </View>
+          <Image source={require('@/assets/images/splash-icon.png')} style={styles.logo} contentFit="contain" accessibilityLabel="Logo" />
           <Text variant="title">Tedarikçi Paneli</Text>
           <Text color="textMuted" center>
             Ürünlerinizi salonlara ulaştırın, siparişlerinizi tek yerden yönetin.
@@ -148,7 +147,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: spacing.xl, gap: spacing.xl, flexGrow: 1, justifyContent: 'center' },
   brand: { alignItems: 'center', gap: spacing.sm },
-  logo: { width: 64, height: 64, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center' },
+  logo: { width: 88, height: 88 },
   segment: { flexDirection: 'row', borderRadius: radius.md, padding: 4 },
   segmentItem: { flex: 1, alignItems: 'center', paddingVertical: spacing.sm, borderRadius: radius.sm },
   form: { gap: spacing.md },
