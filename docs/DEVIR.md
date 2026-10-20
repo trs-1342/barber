@@ -10,7 +10,7 @@ Takım **tek sayfa** seçti: **Reklam ve Öne Çıkarma** (`src/app/promotions.t
 
 ## Teknoloji
 
-- Expo SDK 54 (telefonlardaki Expo Go bunu destekliyor; SÜRÜMÜ YÜKSELTME), React Native 0.81.5, React 19.1, TypeScript 5.9 (strict), Expo Router (`src/app`)
+- Expo SDK 57 (iPhone Expo Go 57 istiyor; SÜRÜM DEĞİŞTİRME), React Native 0.86.3, React 19.2.3, TypeScript 6 (strict). `@react-navigation/*` EKLEME: SDK 56+ expo-router ile uyumsuz, bundle kırılır; tema expo-router'dan import edilir, Expo Router (`src/app`)
 - Expo Go ile test edilir (`npx expo start`, telefonla QR okutulur). Yerel derleme: `npm run android` / `npm run build:apk` (EAS YOK, kullanma).
 - Kontrol: `npm run check` (tsc + lint + jest). Teslimden önce mutlaka çalıştır.
 
@@ -47,3 +47,6 @@ Son güncel durum için `git log` komutuna ve bu dosyanın sonundaki günlüğe 
 - Reklam ve Öne Çıkarma sayfası derinleştiriliyor: kampanya özeti, durum sekmeleri, oluşturma sihirbazı (ürün → yerleşim → süre/bütçe → önizleme), detay ve eylemler (duraklat, devam ettir, bitir), harcama ve tıklama oranı hesapları `lib/promotions.ts` içinde ve testli.
 - Reklam ve Öne Çıkarma TAMAMLANDI: `src/app/(tabs)/promotions.tsx` (özet + sekmeler), `src/app/promotion/new.tsx` (4 adımlı oluşturma + önizleme + tahmini erişim), `src/app/promotion/[id].tsx` (performans, bütçe, duraklat/devam ettir/bitir). Kurallar `src/lib/promotions.ts` içinde, testler `src/__tests__/promotions.test.ts` içinde. Raporlar sekmeden çıkıp Panel'den açılıyor (`/reports`).
 - Doğrulama: tsc, lint, 19 test ve `expo export` geçti. Henüz gerçek cihazda/Expo Go'da görülmedi.
+- SDK 57'ye geçildi (iPhone Expo Go 57). Demo modunda uygulama doğrudan Reklam sekmesinde, demo tedarikçiyle açılır.
+- GPT önceliklerinin hepsi yapıldı: ürün uygunluk (pasif/stok 0 engeli: istemci + mock sunucu + Firestore `get()`), bütçe tükenme (`isBudgetExhausted`, "Bütçe tükendi" rozeti), tahmini GÖSTERİM (erişim değil), onay özeti + çift tıklama koruması, CPC/CPM/TO hesaplanamıyorsa "—". 21 test.
+- Jüri demosu: Reklam → Yeni → ürün (Wax) + Vitrin + 7 gün + 100 ₺ → toplam 700 ₺ ve tahmini gösterim → onay → listede görünür → detayda duraklat/devam → yeni kampanyada "Ense Fırçası" (stok 0) seç → engellenir.
