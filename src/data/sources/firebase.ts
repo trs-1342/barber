@@ -80,8 +80,9 @@ export function createFirebaseRepository(): Repository {
 
     async register({ password, ...profile }) {
       try {
-        const cred = await createUserWithEmailAndPassword(auth(), profile.email.trim(), password);
-        const supplier: Supplier = { ...profile, id: cred.user.uid };
+        const email = profile.email.trim().toLowerCase();
+        const cred = await createUserWithEmailAndPassword(auth(), email, password);
+        const supplier: Supplier = { ...profile, email, id: cred.user.uid };
         const { id, ...data } = supplier;
         await setDoc(doc(db(), 'suppliers', id), data);
         return supplier;
