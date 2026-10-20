@@ -41,6 +41,16 @@ async function uid() {
   return data.user.id;
 }
 
+const guestProfile = (id: string): Supplier => ({
+  id,
+  companyName: 'Misafir Tedarikçi',
+  contactName: 'Misafir',
+  email: '',
+  phone: '',
+  city: 'İstanbul',
+  taxNumber: '',
+});
+
 export function createSupabaseRepository(): Repository {
   return {
     async signIn({ email, password }) {
@@ -61,6 +71,12 @@ export function createSupabaseRepository(): Repository {
           .single(),
       );
       return fromRow<Supplier>(row);
+    },
+
+    async signInGuest() {
+      const { data, error } = await sb().auth.signInAnonymously();
+      if (error || !data.user) throw new AuthError(error?.message ?? 'Misafir girişi başarısız');
+      return guestProfile(data.user.id);
     },
 
     async signOut() {

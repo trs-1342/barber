@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { Button, Icon, Input, Screen, Text } from '@/components/ui';
 import { repo } from '@/data';
@@ -43,6 +43,18 @@ export default function LoginScreen() {
     }
     setErrors(e);
     return Object.keys(e).length === 0;
+  }
+
+  async function guest() {
+    setSubmitError(undefined);
+    setLoading(true);
+    try {
+      session.set(await repo.signInGuest());
+    } catch (e) {
+      setSubmitError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function submit() {
@@ -132,11 +144,13 @@ export default function LoginScreen() {
             </Text>
           )}
           <Button title={isLogin ? 'Giriş Yap' : 'Hesap Oluştur'} loading={loading} onPress={submit} haptic />
-          {isLogin && (
-            <Text variant="caption" color="textMuted" center>
-              Demo: herhangi bir e-posta ve 6+ karakter şifre
-            </Text>
-          )}
+          <Button
+            title="Google ile devam et"
+            icon="logo-google"
+            variant="ghost"
+            onPress={() => Alert.alert('Google ile giriş', 'Yakında. Şimdilik e-posta ile ya da giriş yapmadan devam edebilirsiniz.')}
+          />
+          <Button title="Giriş yapmadan devam et" variant="secondary" onPress={guest} disabled={loading} />
         </View>
       </Screen>
     </KeyboardAvoidingView>

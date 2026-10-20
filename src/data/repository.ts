@@ -12,6 +12,8 @@ export type Registration = Credentials & Omit<Supplier, 'id' | 'email'>;
 export interface Repository {
   signIn(c: Credentials): Promise<Supplier>;
   register(r: Registration): Promise<Supplier>;
+  /** Hesap açmadan misafir olarak devam (Firebase anonim giriş). */
+  signInGuest(): Promise<Supplier>;
   signOut(): Promise<void>;
   updateSupplier(patch: Partial<Omit<Supplier, 'id'>>): Promise<Supplier>;
 

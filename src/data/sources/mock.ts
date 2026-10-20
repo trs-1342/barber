@@ -40,6 +40,10 @@ export function createMockRepository(latency = true): Repository {
       supplier = { ...rest, id: `sup${Date.now()}`, email: rest.email.trim().toLowerCase() } as Supplier;
       return wait(supplier);
     },
+    async signInGuest() {
+      supplier = { ...seed.supplier };
+      return wait(supplier);
+    },
     async signOut() {
       supplier = null;
     },

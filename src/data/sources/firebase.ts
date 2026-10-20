@@ -2,6 +2,7 @@ import { getApp, getApps, initializeApp } from 'firebase/app';
 import {
   createUserWithEmailAndPassword,
   getAuth,
+  signInAnonymously,
   signInWithEmailAndPassword,
   signOut,
 } from 'firebase/auth';
@@ -88,6 +89,28 @@ export function createFirebaseRepository(): Repository {
         return supplier;
       } catch (e) {
         throw new AuthError(authMessage(e));
+      }
+    },
+
+    async signInGuest() {
+      try {
+        // Anonim kullanıcı da gerçek bir uid alır; kendi ürün ve kampanyalarını Firestore'a yazabilir.
+        const cred = await signInAnonymously(auth());
+        return {
+          id: cred.user.uid,
+          companyName: 'Misafir Tedarikçi',
+          contactName: 'Misafir',
+          email: '',
+          phone: '',
+          city: 'İstanbul',
+          taxNumber: '',
+        };
+      } catch (e) {
+        throw new AuthError(
+          (e as { code?: string }).code?.includes('admin-restricted') || (e as { code?: string }).code?.includes('operation-not-allowed')
+            ? 'Misafir girişi kapalı: Firebase Console > Authentication > Sign-in method > Anonymous açılmalı'
+            : authMessage(e),
+        );
       }
     },
 
