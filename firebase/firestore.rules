@@ -1,0 +1,38 @@
+rules_version = '2';
+// Barber — Firestore kuralları. DEMO: giriş sistemi yok; giriş eklenince
+// appointments'a userId ekleyip request.auth.uid ile daralt.
+service cloud.firestore {
+  match /databases/{db}/documents {
+    match /shops/{id} {
+      allow read: if true;
+      allow write: if false; // örnek veri konsoldan ya da yönetici hesabıyla yüklenir
+    }
+
+    match /appointments/{id} {
+      allow read: if true;
+      allow create: if request.resource.data.status == 'pending'
+        && request.resource.data.durationMin is int
+        && request.resource.data.durationMin > 0
+        && request.resource.data.durationMin <= 480
+        && request.resource.data.total is int
+        && request.resource.data.start is string
+        && request.resource.data.shopId is string;
+      allow update: if resource.data.status in ['pending', 'confirmed']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status == 'cancelled';
+      allow delete: if false;
+    }
+
+    // Çift rezervasyon kilitleri: yalnızca yoksa oluşturulur, iptalde silinir.
+    match /slotLocks/{id} {
+      allow read: if true;
+      // Kilit yalnızca aynı işlemde oluşturulan bekleyen bir randevuya bağlanabilir.
+      allow create: if getAfter(/databases/$(db)/documents/appointments/$(request.resource.data.appointmentId))
+        .data.status == 'pending';
+      // Kilit yalnızca bağlı randevu aynı işlemde iptal edilirken silinebilir.
+      allow delete: if getAfter(/databases/$(db)/documents/appointments/$(resource.data.appointmentId))
+        .data.status == 'cancelled';
+      allow update: if false;
+    }
+  }
+}
