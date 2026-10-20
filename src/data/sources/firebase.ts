@@ -2,13 +2,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import {
   createUserWithEmailAndPassword,
+  EmailAuthProvider,
   getAuth,
   getReactNativePersistence,
   initializeAuth,
+  linkWithCredential,
   onAuthStateChanged,
+  reauthenticateWithCredential,
+  sendEmailVerification,
+  sendPasswordResetEmail,
   signInAnonymously,
   signInWithEmailAndPassword,
   signOut,
+  verifyBeforeUpdateEmail,
   type Auth,
   type User,
 } from 'firebase/auth';
@@ -84,7 +90,9 @@ const withId = <T,>(d: { id: string; data(): unknown }) => ({ ...(d.data() as Om
 
 function authMessage(e: unknown) {
   const code = (e as { code?: string }).code ?? '';
-  if (code.includes('email-already-in-use')) return 'Bu e-posta zaten kayıtlı';
+  if (code.includes('email-already-in-use') || code.includes('credential-already-in-use'))
+    return 'Bu e-posta zaten kayıtlı';
+  if (code.includes('requires-recent-login')) return 'Güvenlik için çıkış yapıp yeniden giriş yapın';
   if (code.includes('weak-password')) return 'Şifre en az 6 karakter olmalı';
   if (code.includes('invalid-email')) return 'Geçerli bir e-posta girin';
   if (code.includes('invalid') || code.includes('user-not-found') || code.includes('wrong-password'))
@@ -99,6 +107,31 @@ function authMessage(e: unknown) {
 async function readSupplier(user: User): Promise<Supplier | null> {
   const snap = await getDoc(doc(db(), 'suppliers', user.uid));
   return snap.exists() ? withId<Supplier>(snap) : null;
+}
+
+const guestProfile = (id: string): Supplier => ({
+  id,
+  companyName: 'Misafir Tedarikçi',
+  contactName: 'Misafir',
+  email: '',
+  phone: '',
+  city: 'İstanbul',
+  taxNumber: '',
+});
+
+function currentUser() {
+  const u = auth().currentUser;
+  if (!u) throw new AuthError('Oturum açılmamış');
+  return u;
+}
+
+/** Doğrulama e-postası gönderilemezse kayıt bozulmaz; kullanıcı Ayarlar'dan tekrar isteyebilir. */
+async function trySendVerification(user: User) {
+  try {
+    await sendEmailVerification(user);
+  } catch {
+    // yoksay
+  }
 }
 
 async function listPromotions() {
@@ -131,6 +164,7 @@ export function createFirebaseRepository(): Repository {
         const supplier: Supplier = { ...profile, email, id: cred.user.uid };
         const { id, ...data } = supplier;
         await setDoc(doc(db(), 'suppliers', id), data);
+        await trySendVerification(cred.user);
         return supplier;
       } catch (e) {
         throw new AuthError(authMessage(e));
@@ -141,15 +175,7 @@ export function createFirebaseRepository(): Repository {
       try {
         // Anonim kullanıcı da gerçek bir uid alır; kendi ürün ve kampanyalarını Firestore'a yazabilir.
         const cred = await signInAnonymously(auth());
-        return {
-          id: cred.user.uid,
-          companyName: 'Misafir Tedarikçi',
-          contactName: 'Misafir',
-          email: '',
-          phone: '',
-          city: 'İstanbul',
-          taxNumber: '',
-        };
+        return guestProfile(cred.user.uid);
       } catch (e) {
         throw new AuthError(
           (e as { code?: string }).code?.includes('admin-restricted') || (e as { code?: string }).code?.includes('operation-not-allowed')
@@ -165,8 +191,15 @@ export function createFirebaseRepository(): Repository {
       // Açılışta AsyncStorage'daki oturum geri yüklenince bir kez tetiklenir.
       return onAuthStateChanged(auth(), async (user) => {
         if (!user) return cb(null);
+        // Misafirin profil belgesi yoktur; yine de oturumu sürdür (yeniden açılışta kaybolmasın).
+        if (user.isAnonymous) return cb(guestProfile(user.uid));
         try {
-          const supplier = await readSupplier(user);
+          let supplier = await readSupplier(user);
+          // E-posta değiştirildiyse (doğrulama bağlantısına tıklandıysa) profildeki adresi eşitle.
+          if (supplier && user.email && supplier.email !== user.email) {
+            await updateDoc(doc(db(), 'suppliers', user.uid), { email: user.email });
+            supplier = { ...supplier, email: user.email };
+          }
           // Profil yoksa kayıt sürüyordur (register belgeyi yazıp oturumu kendisi açar).
           if (supplier) cb(supplier);
         } catch {
@@ -175,6 +208,63 @@ export function createFirebaseRepository(): Repository {
           cb({ id: user.uid, email, companyName: email, contactName: '', phone: '', city: '', taxNumber: '' });
         }
       });
+    },
+
+    async getAccountInfo() {
+      const u = auth().currentUser;
+      if (!u) return { email: null, emailVerified: false, isGuest: false };
+      await u.reload().catch(() => undefined); // doğrulama durumu sunucudan tazelenir
+      return { email: u.email, emailVerified: u.emailVerified, isGuest: u.isAnonymous };
+    },
+
+    async sendPasswordReset(email) {
+      try {
+        await sendPasswordResetEmail(auth(), email.trim().toLowerCase());
+      } catch (e) {
+        const code = (e as { code?: string }).code ?? '';
+        // Hesap yoksa da başarılı gibi davran: e-postanın kayıtlı olup olmadığı sızdırılmaz.
+        if (code.includes('user-not-found')) return;
+        throw new AuthError(authMessage(e));
+      }
+    },
+
+    async resendVerification() {
+      const u = currentUser();
+      if (u.isAnonymous || !u.email) throw new ValidationError('Misafir hesabın e-postası yok');
+      try {
+        await sendEmailVerification(u);
+      } catch (e) {
+        throw new AuthError(authMessage(e));
+      }
+    },
+
+    async changeEmail(newEmail, currentPassword) {
+      const u = currentUser();
+      if (!u.email) throw new ValidationError('Misafir hesapta önce e-posta bağlayın');
+      try {
+        await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, currentPassword));
+        await verifyBeforeUpdateEmail(u, newEmail.trim().toLowerCase());
+      } catch (e) {
+        throw new AuthError(authMessage(e));
+      }
+    },
+
+    async upgradeGuest({ password, ...profile }) {
+      const u = currentUser();
+      if (!u.isAnonymous) throw new ValidationError('Hesap zaten kalıcı');
+      const email = profile.email.trim().toLowerCase();
+      try {
+        // linkWithCredential: aynı uid kalır, misafirken eklenen ürün ve kampanyalar korunur.
+        const cred = await linkWithCredential(u, EmailAuthProvider.credential(email, password));
+        await cred.user.getIdToken(true); // kuralların görmesi için token'a e-posta girsin
+        const supplier: Supplier = { ...profile, email, id: cred.user.uid };
+        const { id, ...data } = supplier;
+        await setDoc(doc(db(), 'suppliers', id), data);
+        await trySendVerification(cred.user);
+        return supplier;
+      } catch (e) {
+        throw new AuthError(authMessage(e));
+      }
     },
 
     async updateSupplier(patch) {

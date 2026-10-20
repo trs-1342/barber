@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, StyleSheet, Switch, View } from 'react-native';
 
+import { AccountEmail } from '@/components/account-email';
 import { DataSourceSwitch } from '@/components/data-source-switch';
 import { SectionTitle } from '@/components/supplier';
 import { Button, Card, Chip, Input, Screen, Text } from '@/components/ui';
@@ -56,6 +57,8 @@ export default function SettingsScreen() {
           <Chip key={t.key} label={t.label} selected={theme === t.key} onPress={() => themePreference.set(t.key)} />
         ))}
       </View>
+
+      <AccountEmail />
 
       <SectionTitle title="Firma bilgileri" />
       <Input label="Firma adı" value={form.companyName} onChangeText={set('companyName')} />

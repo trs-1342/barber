@@ -22,6 +22,10 @@ function delay<T>(value: T, signal?: AbortSignal): Promise<T> {
 export function createMockRepository(latency = true, signedIn = false): Repository {
   let supplier: Supplier | null = signedIn ? { ...seed.supplier } : null;
   const listeners = new Set<(s: Supplier | null) => void>();
+  // Demo: e-posta doğrulama ve misafir durumu bellekte tutulur.
+  let emailVerified = true;
+  let isGuest = false;
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const emit = () => listeners.forEach((l) => l(supplier));
   let orders: Order[] = seed.orders.map((o) => ({ ...o }));
   let products: Product[] = seed.products.map((p) => ({ ...p }));
@@ -42,11 +46,14 @@ export function createMockRepository(latency = true, signedIn = false): Reposito
     async register({ password, ...rest }) {
       if (password.length < 6) throw new AuthError('Şifre en az 6 karakter olmalı');
       supplier = { ...rest, id: `sup${Date.now()}`, email: rest.email.trim().toLowerCase() } as Supplier;
+      emailVerified = false;
+      isGuest = false;
       emit();
       return wait(supplier);
     },
     async signInGuest() {
-      supplier = { ...seed.supplier };
+      supplier = { ...seed.supplier, email: '' };
+      isGuest = true;
       return wait(supplier);
     },
     async signOut() {
@@ -59,6 +66,33 @@ export function createMockRepository(latency = true, signedIn = false): Reposito
       return () => {
         listeners.delete(cb);
       };
+    },
+    async getAccountInfo() {
+      return { email: supplier?.email || null, emailVerified: isGuest ? false : emailVerified, isGuest };
+    },
+    async sendPasswordReset(email) {
+      if (!EMAIL_RE.test(email.trim())) throw new ValidationError('Geçerli bir e-posta girin');
+      await wait(undefined);
+    },
+    async resendVerification() {
+      if (isGuest) throw new ValidationError('Misafir hesabın e-postası yok');
+      await wait(undefined);
+    },
+    async changeEmail(newEmail, currentPassword) {
+      if (!EMAIL_RE.test(newEmail.trim())) throw new ValidationError('Geçerli bir e-posta girin');
+      if (currentPassword.length < 6) throw new AuthError('Mevcut şifre hatalı');
+      supplier = { ...me(), email: newEmail.trim().toLowerCase() };
+      emailVerified = false;
+      emit();
+    },
+    async upgradeGuest({ password, ...profile }) {
+      if (!isGuest) throw new ValidationError('Hesap zaten kalıcı');
+      if (password.length < 6) throw new AuthError('Şifre en az 6 karakter olmalı');
+      supplier = { ...me(), ...profile, email: profile.email.trim().toLowerCase() };
+      isGuest = false;
+      emailVerified = false;
+      emit();
+      return wait(supplier);
     },
     async updateSupplier(patch) {
       supplier = { ...(supplier ?? seed.supplier), ...patch };

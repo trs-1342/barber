@@ -3,7 +3,7 @@ import { createClient, type PostgrestError, type SupabaseClient } from '@supabas
 
 import { env } from '@/lib/env';
 
-import { AuthError, InvalidTransitionError, NotFoundError, type Repository } from '../repository';
+import { AuthError, InvalidTransitionError, NotFoundError, ValidationError, type Repository } from '../repository';
 import type { Order, Product, Promotion, Supplier } from '../types';
 
 /**
@@ -95,6 +95,42 @@ export function createSupabaseRepository(): Repository {
         }, 0);
       });
       return () => data.subscription.unsubscribe();
+    },
+
+    async getAccountInfo() {
+      const { data } = await sb().auth.getUser();
+      const u = data.user;
+      if (!u) return { email: null, emailVerified: false, isGuest: false };
+      return { email: u.email ?? null, emailVerified: !!u.email_confirmed_at, isGuest: !!u.is_anonymous };
+    },
+
+    async sendPasswordReset(email) {
+      const { error } = await sb().auth.resetPasswordForEmail(email.trim().toLowerCase());
+      if (error) throw new AuthError(error.message);
+    },
+
+    async resendVerification() {
+      const { data } = await sb().auth.getUser();
+      if (!data.user?.email) throw new ValidationError('Misafir hesabın e-postası yok');
+      const { error } = await sb().auth.resend({ type: 'signup', email: data.user.email });
+      if (error) throw new AuthError(error.message);
+    },
+
+    async changeEmail(newEmail, currentPassword) {
+      const { data } = await sb().auth.getUser();
+      if (!data.user?.email) throw new ValidationError('Misafir hesapta önce e-posta bağlayın');
+      const re = await sb().auth.signInWithPassword({ email: data.user.email, password: currentPassword });
+      if (re.error) throw new AuthError('Mevcut şifre hatalı');
+      const { error } = await sb().auth.updateUser({ email: newEmail.trim().toLowerCase() });
+      if (error) throw new AuthError(error.message);
+    },
+
+    async upgradeGuest({ password, ...profile }) {
+      const email = profile.email.trim().toLowerCase();
+      const { data, error } = await sb().auth.updateUser({ email, password });
+      if (error || !data.user) throw new AuthError(error?.message ?? 'Hesap kalıcı yapılamadı');
+      const row = check(await sb().from('suppliers').insert(toRow({ ...profile, email, id: data.user.id })).select().single());
+      return fromRow<Supplier>(row);
     },
 
     async updateSupplier(patch) {

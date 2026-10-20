@@ -4,6 +4,7 @@ export type ProductInput = Omit<Product, 'id'>;
 export type PromotionInput = Omit<Promotion, 'id' | 'impressions' | 'clicks' | 'status'>;
 export type Credentials = { email: string; password: string };
 export type Registration = Credentials & Omit<Supplier, 'id' | 'email'>;
+export type AccountInfo = { email: string | null; emailVerified: boolean; isGuest: boolean };
 
 /**
  * Ekranların bildiği tek veri sözleşmesi. Firebase, Supabase ve sahte veri
@@ -21,6 +22,17 @@ export interface Repository {
    */
   onAuthChange(cb: (s: Supplier | null) => void): () => void;
   updateSupplier(patch: Partial<Omit<Supplier, 'id'>>): Promise<Supplier>;
+
+  /** Oturumdaki hesabın e-posta durumu. */
+  getAccountInfo(): Promise<AccountInfo>;
+  /** Şifre sıfırlama bağlantısı gönderir. Kayıtlı olmayan e-posta için de başarılı görünür (hesap varlığı sızdırılmaz). */
+  sendPasswordReset(email: string): Promise<void>;
+  /** Doğrulama e-postasını yeniden gönderir. */
+  resendVerification(): Promise<void>;
+  /** Yeni adrese doğrulama bağlantısı gönderir; e-posta, bağlantıya tıklanınca değişir. Güvenlik için mevcut şifre istenir. */
+  changeEmail(newEmail: string, currentPassword: string): Promise<void>;
+  /** Misafir hesabı e-postayla kalıcı hesaba çevirir; uid ve tüm veriler korunur. */
+  upgradeGuest(r: Registration): Promise<Supplier>;
 
   listOrders(signal?: AbortSignal): Promise<Order[]>;
   /** Geçersiz durum geçişinde `InvalidTransitionError` fırlatır. */

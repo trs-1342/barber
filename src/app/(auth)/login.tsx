@@ -57,6 +57,23 @@ export default function LoginScreen() {
     }
   }
 
+  async function forgot() {
+    setSubmitError(undefined);
+    if (!EMAIL_RE.test(form.email.trim())) {
+      setErrors((e) => ({ ...e, email: 'Sıfırlama bağlantısı için e-postanızı yazın' }));
+      return;
+    }
+    setLoading(true);
+    try {
+      await repo.sendPasswordReset(form.email);
+      Alert.alert('Bağlantı gönderildi', `Hesap varsa ${form.email.trim()} adresine şifre sıfırlama bağlantısı gönderildi.`);
+    } catch (e) {
+      setSubmitError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function guest() {
     setSubmitError(undefined);
     setLoading(true);
@@ -187,6 +204,13 @@ export default function LoginScreen() {
                 onSubmitEditing={submit}
                 returnKeyType="go"
               />
+              {isLogin && (
+                <Pressable accessibilityRole="link" onPress={forgot} hitSlop={8} style={styles.forgot}>
+                  <Text variant="caption" color="primary">
+                    Şifremi unuttum
+                  </Text>
+                </Pressable>
+              )}
               {submitError && (
                 <Text color="danger" accessibilityRole="alert">
                   {submitError}
@@ -212,6 +236,7 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
+  forgot: { alignSelf: 'flex-end' },
   flex: { flex: 1 },
   content: { padding: spacing.xl, gap: spacing.xl, flexGrow: 1, justifyContent: 'center' },
   brand: { alignItems: 'center', gap: spacing.sm },

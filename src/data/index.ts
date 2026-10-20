@@ -39,5 +39,5 @@ export const repo: Repository = new Proxy({} as Repository, {
 });
 
 export { AuthError, InvalidTransitionError, NotFoundError, ValidationError } from './repository';
-export type { Credentials, ProductInput, PromotionInput, Registration, Repository } from './repository';
+export type { AccountInfo, Credentials, ProductInput, PromotionInput, Registration, Repository } from './repository';
 export * from './types';

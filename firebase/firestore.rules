@@ -12,8 +12,10 @@ service cloud.firestore {
       allow create: if isOwner(uid)
         && request.resource.data.companyName is string
         && request.resource.data.email == request.auth.token.email;
-      // Vergi no ve e-posta sonradan değiştirilemez.
-      allow update: if isOwner(uid) && onlyChanged(['companyName', 'contactName', 'phone', 'city']);
+      // Vergi no değiştirilemez. E-posta yalnızca doğrulanmış Auth e-postasıyla eşitlenebilir (e-posta değişikliği).
+      allow update: if isOwner(uid) && (
+        onlyChanged(['companyName', 'contactName', 'phone', 'city'])
+        || (onlyChanged(['email']) && request.resource.data.email == request.auth.token.email));
       allow delete: if false;
 
       match /products/{id} {
