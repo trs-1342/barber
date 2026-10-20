@@ -17,6 +17,8 @@ export const env = {
     messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? '',
     appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID ?? '',
   },
+  /** Firebase > Authentication > Google sağlayıcısı > Web SDK yapılandırması > Web istemci kimliği. */
+  googleWebClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '',
   supabase: {
     url: process.env.EXPO_PUBLIC_SUPABASE_URL ?? '',
     anonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '',

@@ -15,6 +15,8 @@ export interface Repository {
   register(r: Registration): Promise<Supplier>;
   /** Hesap açmadan misafir olarak devam (Firebase anonim giriş). */
   signInGuest(): Promise<Supplier>;
+  /** Google ile giriş; ilk girişte tedarikçi profili oluşturulur. Kullanıcı vazgeçerse `null`. */
+  signInWithGoogle(): Promise<Supplier | null>;
   signOut(): Promise<void>;
   /**
    * Oturum değişikliklerini dinler (açılışta kalıcı oturum dahil). Geri çağırma en az bir kez,

@@ -4,6 +4,7 @@ import {
   createUserWithEmailAndPassword,
   EmailAuthProvider,
   getAuth,
+  GoogleAuthProvider,
   getReactNativePersistence,
   initializeAuth,
   linkWithCredential,
@@ -12,6 +13,7 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   signInAnonymously,
+  signInWithCredential,
   signInWithEmailAndPassword,
   signOut,
   verifyBeforeUpdateEmail,
@@ -36,6 +38,8 @@ import {
 import { Platform } from 'react-native';
 
 import { env } from '@/lib/env';
+import { googlePopupSignIn } from '@/lib/firebase-popup';
+import { getGoogleIdToken, googleSignOut } from '@/lib/google';
 import { canTransition } from '@/lib/orders';
 import { effectiveStatus, validateDraft } from '@/lib/promotions';
 
@@ -185,7 +189,47 @@ export function createFirebaseRepository(): Repository {
       }
     },
 
-    signOut: () => signOut(auth()),
+    async signInWithGoogle() {
+      try {
+        let user: User;
+        if (Platform.OS === 'web') {
+          user = await googlePopupSignIn(auth());
+        } else {
+          const idToken = await getGoogleIdToken();
+          if (!idToken) return null;
+          user = (await signInWithCredential(auth(), GoogleAuthProvider.credential(idToken))).user;
+        }
+        const existing = await readSupplier(user);
+        if (existing) return existing;
+        // İlk Google girişi: profil Google hesabından doldurulur, eksikler Ayarlar'dan tamamlanır.
+        const email = (user.email ?? '').toLowerCase();
+        const supplier: Supplier = {
+          id: user.uid,
+          companyName: user.displayName ?? email,
+          contactName: user.displayName ?? '',
+          email,
+          phone: user.phoneNumber ?? '',
+          city: 'İstanbul',
+          taxNumber: '',
+        };
+        const { id, ...data } = supplier;
+        await setDoc(doc(db(), 'suppliers', id), data);
+        return supplier;
+      } catch (e) {
+        if (e instanceof ValidationError) throw e;
+        const code = (e as { code?: string }).code ?? '';
+        if (code.includes('popup-closed-by-user') || code.includes('cancelled-popup-request')) return null;
+        if (code.includes('account-exists-with-different-credential'))
+          throw new AuthError('Bu e-posta başka bir yöntemle kayıtlı; e-posta ve şifreyle giriş yapın');
+        if (code.includes('operation-not-allowed')) throw new AuthError('Google girişi Firebase konsolunda kapalı');
+        throw new AuthError(authMessage(e));
+      }
+    },
+
+    async signOut() {
+      await googleSignOut();
+      await signOut(auth());
+    },
 
     onAuthChange(cb) {
       // Açılışta AsyncStorage'daki oturum geri yüklenince bir kez tetiklenir.

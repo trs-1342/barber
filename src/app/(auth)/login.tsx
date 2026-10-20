@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { DataSourceSwitch } from '@/components/data-source-switch';
-import { Button, Icon, Input, Screen, Text } from '@/components/ui';
+import { Button, Input, Screen, Text } from '@/components/ui';
 import { repo } from '@/data';
 import { supplier as demoSupplier } from '@/data/seed';
 import { session, useDataSource } from '@/store';
@@ -67,6 +67,19 @@ export default function LoginScreen() {
     try {
       await repo.sendPasswordReset(form.email);
       Alert.alert('Bağlantı gönderildi', `Hesap varsa ${form.email.trim()} adresine şifre sıfırlama bağlantısı gönderildi.`);
+    } catch (e) {
+      setSubmitError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function google() {
+    setSubmitError(undefined);
+    setLoading(true);
+    try {
+      const user = await repo.signInWithGoogle();
+      if (user) session.set(user); // null: kullanıcı vazgeçti
     } catch (e) {
       setSubmitError((e as Error).message);
     } finally {
@@ -221,7 +234,8 @@ export default function LoginScreen() {
                 title="Google ile devam et"
                 icon="logo-google"
                 variant="ghost"
-                onPress={() => Alert.alert('Google ile giriş', 'Yakında. Şimdilik e-posta ile ya da giriş yapmadan devam edebilirsiniz.')}
+                onPress={google}
+                disabled={loading}
               />
               <Button title="Giriş yapmadan devam et" variant="secondary" onPress={guest} disabled={loading} />
               <Text variant="caption" color="textMuted" center>

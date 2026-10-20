@@ -1,7 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, type PostgrestError, type SupabaseClient } from '@supabase/supabase-js';
 
+import { Platform } from 'react-native';
+
 import { env } from '@/lib/env';
+import { getGoogleIdToken, googleSignOut } from '@/lib/google';
 
 import { AuthError, InvalidTransitionError, NotFoundError, ValidationError, type Repository } from '../repository';
 import type { Order, Product, Promotion, Supplier } from '../types';
@@ -73,6 +76,31 @@ export function createSupabaseRepository(): Repository {
       return fromRow<Supplier>(row);
     },
 
+    async signInWithGoogle() {
+      if (Platform.OS === 'web') {
+        // Web'de Supabase Google'a yönlendirir; dönüşte oturum onAuthChange ile gelir.
+        const { error } = await sb().auth.signInWithOAuth({ provider: 'google' });
+        if (error) throw new AuthError(error.message);
+        return null;
+      }
+      const idToken = await getGoogleIdToken();
+      if (!idToken) return null;
+      const { data, error } = await sb().auth.signInWithIdToken({ provider: 'google', token: idToken });
+      if (error || !data.user) throw new AuthError(error?.message ?? 'Google girişi başarısız');
+      const found = await sb().from('suppliers').select('*').eq('id', data.user.id).maybeSingle();
+      if (found.data) return fromRow<Supplier>(found.data);
+      const email = (data.user.email ?? '').toLowerCase();
+      const name = (data.user.user_metadata?.full_name as string | undefined) ?? email;
+      const row = check(
+        await sb()
+          .from('suppliers')
+          .insert(toRow({ id: data.user.id, companyName: name, contactName: name, email, phone: '', city: 'İstanbul', taxNumber: '0000000000' }))
+          .select()
+          .single(),
+      );
+      return fromRow<Supplier>(row);
+    },
+
     async signInGuest() {
       const { data, error } = await sb().auth.signInAnonymously();
       if (error || !data.user) throw new AuthError(error?.message ?? 'Misafir girişi başarısız');
@@ -80,6 +108,7 @@ export function createSupabaseRepository(): Repository {
     },
 
     async signOut() {
+      await googleSignOut();
       await sb().auth.signOut();
     },
 

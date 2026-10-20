@@ -51,6 +51,13 @@ export function createMockRepository(latency = true, signedIn = false): Reposito
       emit();
       return wait(supplier);
     },
+    async signInWithGoogle() {
+      supplier = { ...seed.supplier, email: 'demo.tedarikci@gmail.com' };
+      isGuest = false;
+      emailVerified = true; // Google hesapları doğrulanmış gelir
+      emit();
+      return wait(supplier);
+    },
     async signInGuest() {
       supplier = { ...seed.supplier, email: '' };
       isGuest = true;
