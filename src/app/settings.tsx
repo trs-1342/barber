@@ -3,14 +3,21 @@ import { useState } from 'react';
 import { Alert, StyleSheet, Switch, View } from 'react-native';
 
 import { SectionTitle } from '@/components/supplier';
-import { Button, Card, Input, Screen, Text } from '@/components/ui';
+import { Button, Card, Chip, Input, Screen, Text } from '@/components/ui';
 import { repo } from '@/data';
 import { session, useSession } from '@/store';
-import { spacing, useColors } from '@/theme';
+import { spacing, themePreference, useColors, useThemePreference, type ThemePreference } from '@/theme';
+
+const THEMES: { key: ThemePreference; label: string }[] = [
+  { key: 'system', label: 'Sistem' },
+  { key: 'light', label: 'Açık' },
+  { key: 'dark', label: 'Koyu' },
+];
 
 export default function SettingsScreen() {
   const colors = useColors();
   const user = useSession();
+  const theme = useThemePreference();
   const [form, setForm] = useState({
     companyName: user?.companyName ?? '',
     contactName: user?.contactName ?? '',
@@ -42,6 +49,13 @@ export default function SettingsScreen() {
 
   return (
     <Screen edges={[]} footer={<Button title="Kaydet" onPress={save} loading={saving} />}>
+      <SectionTitle title="Görünüm" />
+      <View style={styles.row}>
+        {THEMES.map((t) => (
+          <Chip key={t.key} label={t.label} selected={theme === t.key} onPress={() => themePreference.set(t.key)} />
+        ))}
+      </View>
+
       <SectionTitle title="Firma bilgileri" />
       <Input label="Firma adı" value={form.companyName} onChangeText={set('companyName')} />
       <Input label="Yetkili" value={form.contactName} onChangeText={set('contactName')} />
@@ -71,5 +85,6 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  row: { flexDirection: 'row', gap: spacing.sm },
   toggle: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg },
 });

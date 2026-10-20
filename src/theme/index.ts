@@ -49,6 +49,8 @@ export const typography = {
 
 export type TypographyVariant = keyof typeof typography;
 
+export { themePreference, useThemePreference, type ThemePreference } from './preference';
+
 export function useColors(): Colors {
   return palette[useColorScheme() === 'dark' ? 'dark' : 'light'];
 }

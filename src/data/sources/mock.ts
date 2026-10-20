@@ -44,7 +44,7 @@ export function createMockRepository(latency = true): Repository {
       supplier = null;
     },
     async updateSupplier(patch) {
-      supplier = { ...me(), ...patch };
+      supplier = { ...(supplier ?? seed.supplier), ...patch };
       return wait(supplier);
     },
 

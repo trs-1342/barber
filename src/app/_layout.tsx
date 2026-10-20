@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
 import { useSession } from '@/store';
-import { useColors, useIsDark } from '@/theme';
+import { themePreference, useColors, useIsDark } from '@/theme';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -15,7 +15,8 @@ export default function RootLayout() {
   const base = dark ? DarkTheme : DefaultTheme;
 
   useEffect(() => {
-    SplashScreen.hideAsync();
+    // Kayıtlı tema tercihi uygulanınca açılış ekranı kalkar; yanlış temada yanıp sönme olmaz.
+    themePreference.load().finally(() => SplashScreen.hideAsync());
   }, []);
 
   return (
