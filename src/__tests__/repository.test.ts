@@ -9,8 +9,8 @@ describe('mock repository', () => {
     await expect(fresh().signIn({ email: 'a@b.com', password: '123' })).rejects.toBeInstanceOf(AuthError);
   });
 
-  it('oturum açmadan hesap güncellenemez', async () => {
-    await expect(fresh().updateSupplier({ city: 'Ankara' })).rejects.toBeInstanceOf(AuthError);
+  it('demo modunda hesap bilgisi güncellenebilir', async () => {
+    await expect(fresh().updateSupplier({ city: 'Ankara' })).resolves.toMatchObject({ city: 'Ankara' });
   });
 
   it('siparişi kurala uygun ilerletir, geçersiz geçişi reddeder', async () => {

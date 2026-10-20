@@ -50,3 +50,6 @@ example
 # yerel derleme çıktıları
 /builds
 google-services.json
+
+# ajan çalışma kopyaları
+.claude/worktrees/
