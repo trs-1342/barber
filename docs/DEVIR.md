@@ -10,7 +10,7 @@ Takım **tek sayfa** seçti: **Reklam ve Öne Çıkarma** (`src/app/promotions.t
 
 ## Teknoloji
 
-- Expo SDK 58, React Native 0.88, React 19.3, TypeScript 6 (strict), Expo Router (`src/app`)
+- Expo SDK 54 (telefonlardaki Expo Go bunu destekliyor; SÜRÜMÜ YÜKSELTME), React Native 0.81.5, React 19.1, TypeScript 5.9 (strict), Expo Router (`src/app`)
 - Expo Go ile test edilir (`npx expo start`, telefonla QR okutulur). Yerel derleme: `npm run android` / `npm run build:apk` (EAS YOK, kullanma).
 - Kontrol: `npm run check` (tsc + lint + jest). Teslimden önce mutlaka çalıştır.
 

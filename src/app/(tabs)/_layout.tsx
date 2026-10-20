@@ -1,39 +1,42 @@
-import { NativeTabs } from 'expo-router/native-tabs';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { Tabs } from 'expo-router';
+import type { ComponentProps } from 'react';
 
 import { orders } from '@/store';
 import { useColors } from '@/theme';
+
+type IconName = ComponentProps<typeof Ionicons>['name'];
+
+function tabIcon(name: IconName, active: IconName) {
+  return function TabIcon({ color, size, focused }: { color: string; size: number; focused: boolean }) {
+    return <Ionicons name={focused ? active : name} size={size} color={color} />;
+  };
+}
 
 export default function TabsLayout() {
   const colors = useColors();
   const pending = orders.useList().items.filter((o) => o.status === 'new').length;
 
   return (
-    <NativeTabs
-      backgroundColor={colors.surface}
-      indicatorColor={colors.surfaceAlt}
-      iconColor={{ default: colors.textMuted, selected: colors.primary }}
-      labelStyle={{ default: { color: colors.textMuted }, selected: { color: colors.text } }}>
-      <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Panel</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="square.grid.2x2" md="dashboard" />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="orders">
-        <NativeTabs.Trigger.Label>Siparişler</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="shippingbox" md="local_shipping" />
-        {pending > 0 && <NativeTabs.Trigger.Badge>{String(pending)}</NativeTabs.Trigger.Badge>}
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="products">
-        <NativeTabs.Trigger.Label>Ürünler</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="tag" md="inventory_2" />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="promotions">
-        <NativeTabs.Trigger.Label>Reklam</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="megaphone" md="campaign" />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="account">
-        <NativeTabs.Trigger.Label>Hesap</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="person.crop.circle" md="account_circle" />
-      </NativeTabs.Trigger>
-    </NativeTabs>
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textMuted,
+        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
+      }}>
+      <Tabs.Screen name="index" options={{ title: 'Panel', tabBarIcon: tabIcon('grid-outline', 'grid') }} />
+      <Tabs.Screen
+        name="orders"
+        options={{
+          title: 'Siparişler',
+          tabBarIcon: tabIcon('cube-outline', 'cube'),
+          tabBarBadge: pending > 0 ? pending : undefined,
+        }}
+      />
+      <Tabs.Screen name="products" options={{ title: 'Ürünler', tabBarIcon: tabIcon('pricetags-outline', 'pricetags') }} />
+      <Tabs.Screen name="promotions" options={{ title: 'Reklam', tabBarIcon: tabIcon('megaphone-outline', 'megaphone') }} />
+      <Tabs.Screen name="account" options={{ title: 'Hesap', tabBarIcon: tabIcon('person-circle-outline', 'person-circle') }} />
+    </Tabs>
   );
 }

@@ -49,3 +49,4 @@ Docs: https://docs.expo.dev/eas/index.md
 - Renk, boşluk ve yazı ölçekleri `@/theme` dosyasından gelir; ekranlarda sabit renk kullanma.
 - Bitti demeden önce `npm run check` çalıştır.
 - Commit'lere atıf satırı (Co-Authored-By vb.) ekleme.
+- SDK 54'te kal (Expo Go uyumu). Paketleri yalnızca `npx expo install` ile ekle. Belgeler: https://docs.expo.dev/versions/v54.0.0/

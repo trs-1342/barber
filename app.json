@@ -8,7 +8,6 @@
     "scheme": "barber",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.barberapp.trs1342",
       "supportsTablet": false
     },
@@ -20,10 +19,11 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.barberapp.trs1342"
+      "package": "com.barberapp.trs1342",
+      "edgeToEdgeEnabled": true
     },
     "web": {
-      "output": "server",
+      "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -40,6 +40,7 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "newArchEnabled": true
   }
 }

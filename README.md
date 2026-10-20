@@ -2,8 +2,8 @@
 
 Berber randevu uygulaması için mobil ekranlar. React Native + Expo ile tek kod tabanından Android ve iOS.
 
-- **Expo SDK 58**, React Native 0.88, React 19.3, TypeScript (strict)
-- **Expo Router** (dosya tabanlı gezinme, yerel sekmeler)
+- **Expo SDK 54** (Expo Go uyumlu), React Native 0.81.5, React 19.1, TypeScript (strict)
+- **Expo Router** (dosya tabanlı gezinme)
 - **FlashList** ile performanslı listeler
 - Veri katmanı tek arayüz üzerinden: **mock**, **Firebase (Firestore)** veya **Supabase**
 - Derleme tamamen **yerelde** (Gradle). EAS veya başka bulut derleme servisi gerekmez.
