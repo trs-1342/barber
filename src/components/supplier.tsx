@@ -84,13 +84,15 @@ export function BarChart({
   );
 }
 
-const rel = new Intl.RelativeTimeFormat('tr-TR', { numeric: 'auto' });
+// Intl.RelativeTimeFormat iOS Hermes'te yok; bu yüzden elle biçimlenir.
 export function timeAgo(iso: string, now = Date.now()) {
-  const min = Math.round((Date.parse(iso) - now) / 60_000);
-  if (Math.abs(min) < 60) return rel.format(min, 'minute');
+  const min = Math.max(0, Math.round((now - Date.parse(iso)) / 60_000));
+  if (min < 1) return 'şimdi';
+  if (min < 60) return `${min} dk önce`;
   const h = Math.round(min / 60);
-  if (Math.abs(h) < 24) return rel.format(h, 'hour');
-  return rel.format(Math.round(h / 24), 'day');
+  if (h < 24) return `${h} sa önce`;
+  const d = Math.round(h / 24);
+  return d === 1 ? 'dün' : `${d} gün önce`;
 }
 
 export const OrderRow = memo(function OrderRow({
