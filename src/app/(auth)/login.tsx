@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
 
+import { DataSourceSwitch } from '@/components/data-source-switch';
 import { Button, Icon, Input, Screen, Text } from '@/components/ui';
 import { repo } from '@/data';
-import { session } from '@/store';
+import { supplier as demoSupplier } from '@/data/seed';
+import { session, useDataSource } from '@/store';
 import { radius, spacing, useColors } from '@/theme';
 
 type Mode = 'login' | 'register';
@@ -24,6 +26,7 @@ export default function LoginScreen() {
   const [errors, setErrors] = useState<Partial<Record<keyof typeof form, string>>>({});
   const [submitError, setSubmitError] = useState<string>();
   const [loading, setLoading] = useState(false);
+  const isDemo = useDataSource() === 'mock';
 
   const set = (k: keyof typeof form) => (v: string) => {
     setForm((f) => ({ ...f, [k]: v }));
@@ -42,6 +45,15 @@ export default function LoginScreen() {
     }
     setErrors(e);
     return Object.keys(e).length === 0;
+  }
+
+  async function openDemo() {
+    setLoading(true);
+    try {
+      session.set(await repo.signIn({ email: demoSupplier.email, password: 'demo1234' }));
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function submit() {
@@ -76,69 +88,106 @@ export default function LoginScreen() {
           </Text>
         </View>
 
-        <View style={[styles.segment, { backgroundColor: colors.surfaceAlt }]}>
-          {(['login', 'register'] as const).map((m) => (
-            <Pressable
-              key={m}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: mode === m }}
-              onPress={() => {
-                setMode(m);
-                setErrors({});
-                setSubmitError(undefined);
-              }}
-              style={[styles.segmentItem, mode === m && { backgroundColor: colors.surface }]}>
-              <Text variant="subheading" color={mode === m ? 'text' : 'textMuted'}>
-                {m === 'login' ? 'Giriş Yap' : 'Kayıt Ol'}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        {/* Demo seçilirse demo tedarikçiyle doğrudan Reklam sekmesi açılır. */}
+        <DataSourceSwitch onChange={() => setSubmitError(undefined)} />
 
-        <View style={styles.form}>
-          {!isLogin && (
-            <>
-              <Input label="Firma adı" value={form.companyName} onChangeText={set('companyName')} error={errors.companyName} />
-              <Input label="Yetkili adı soyadı" value={form.contactName} onChangeText={set('contactName')} error={errors.contactName} textContentType="name" />
-              <Input label="Telefon" value={form.phone} onChangeText={set('phone')} error={errors.phone} keyboardType="phone-pad" textContentType="telephoneNumber" />
-              <Input label="Vergi / TC kimlik no" value={form.taxNumber} onChangeText={set('taxNumber')} error={errors.taxNumber} keyboardType="number-pad" maxLength={11} />
-              <Input label="Şehir" value={form.city} onChangeText={set('city')} placeholder="İstanbul" />
-            </>
-          )}
-          <Input
-            label="E-posta"
-            icon="mail-outline"
-            value={form.email}
-            onChangeText={set('email')}
-            error={errors.email}
-            autoCapitalize="none"
-            autoComplete="email"
-            keyboardType="email-address"
-            textContentType="emailAddress"
-          />
-          <Input
-            label="Şifre"
-            icon="lock-closed-outline"
-            value={form.password}
-            onChangeText={set('password')}
-            error={errors.password}
-            secureTextEntry
-            textContentType={isLogin ? 'password' : 'newPassword'}
-            onSubmitEditing={submit}
-            returnKeyType="go"
-          />
-          {submitError && (
-            <Text color="danger" accessibilityRole="alert">
-              {submitError}
+        {isDemo ? (
+          <View style={styles.form}>
+            <Text color="textMuted" center>
+              Örnek verilerle, internet ve hesap gerekmeden denemek için.
             </Text>
-          )}
-          <Button title={isLogin ? 'Giriş Yap' : 'Hesap Oluştur'} loading={loading} onPress={submit} haptic />
-          {isLogin && (
-            <Text variant="caption" color="textMuted" center>
-              Demo: herhangi bir e-posta ve 6+ karakter şifre
-            </Text>
-          )}
-        </View>
+            <Button title="Demoyu aç" loading={loading} onPress={openDemo} haptic />
+          </View>
+        ) : (
+          <>
+            <View style={[styles.segment, { backgroundColor: colors.surfaceAlt }]}>
+              {(['login', 'register'] as const).map((m) => (
+                <Pressable
+                  key={m}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: mode === m }}
+                  onPress={() => {
+                    setMode(m);
+                    setErrors({});
+                    setSubmitError(undefined);
+                  }}
+                  style={[styles.segmentItem, mode === m && { backgroundColor: colors.surface }]}>
+                  <Text variant="subheading" color={mode === m ? 'text' : 'textMuted'}>
+                    {m === 'login' ? 'Giriş Yap' : 'Kayıt Ol'}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={styles.form}>
+              {!isLogin && (
+                <>
+                  <Input
+                    label="Firma adı"
+                    value={form.companyName}
+                    onChangeText={set('companyName')}
+                    error={errors.companyName}
+                  />
+                  <Input
+                    label="Yetkili adı soyadı"
+                    value={form.contactName}
+                    onChangeText={set('contactName')}
+                    error={errors.contactName}
+                    textContentType="name"
+                  />
+                  <Input
+                    label="Telefon"
+                    value={form.phone}
+                    onChangeText={set('phone')}
+                    error={errors.phone}
+                    keyboardType="phone-pad"
+                    textContentType="telephoneNumber"
+                  />
+                  <Input
+                    label="Vergi / TC kimlik no"
+                    value={form.taxNumber}
+                    onChangeText={set('taxNumber')}
+                    error={errors.taxNumber}
+                    keyboardType="number-pad"
+                    maxLength={11}
+                  />
+                  <Input label="Şehir" value={form.city} onChangeText={set('city')} placeholder="İstanbul" />
+                </>
+              )}
+              <Input
+                label="E-posta"
+                icon="mail-outline"
+                value={form.email}
+                onChangeText={set('email')}
+                error={errors.email}
+                autoCapitalize="none"
+                autoComplete="email"
+                keyboardType="email-address"
+                textContentType="emailAddress"
+              />
+              <Input
+                label="Şifre"
+                icon="lock-closed-outline"
+                value={form.password}
+                onChangeText={set('password')}
+                error={errors.password}
+                secureTextEntry
+                textContentType={isLogin ? 'password' : 'newPassword'}
+                onSubmitEditing={submit}
+                returnKeyType="go"
+              />
+              {submitError && (
+                <Text color="danger" accessibilityRole="alert">
+                  {submitError}
+                </Text>
+              )}
+              <Button title={isLogin ? 'Giriş Yap' : 'Hesap Oluştur'} loading={loading} onPress={submit} haptic />
+              <Text variant="caption" color="textMuted" center>
+                Gerçek veri: Firebase hesabınızla giriş yapın ya da yeni hesap oluşturun.
+              </Text>
+            </View>
+          </>
+        )}
       </Screen>
     </KeyboardAvoidingView>
   );
