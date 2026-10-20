@@ -19,8 +19,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.barberapp.trs1342",
-      "edgeToEdgeEnabled": true
+      "package": "com.barberapp.trs1342"
     },
     "web": {
       "output": "static",
@@ -40,7 +39,6 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    },
-    "newArchEnabled": true
+    }
   }
 }

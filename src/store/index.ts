@@ -1,4 +1,6 @@
 import { repo, type Supplier } from '@/data';
+import { supplier as demoSupplier } from '@/data/seed';
+import { env } from '@/lib/env';
 
 import { createListStore, createStore } from './create-store';
 
@@ -6,7 +8,8 @@ export const orders = createListStore(() => repo.listOrders());
 export const products = createListStore(() => repo.listProducts());
 export const promotions = createListStore(() => repo.listPromotions());
 
-const [sessionStore, useSessionRaw] = createStore<Supplier | null>(null);
+// Demo (mock) modunda doğrudan Reklam ekranı açılsın diye demo tedarikçiyle başlanır.
+const [sessionStore, useSessionRaw] = createStore<Supplier | null>(env.dataSource === 'mock' ? demoSupplier : null);
 
 export const session = {
   get: sessionStore.get,
