@@ -3,12 +3,12 @@ import { router, type Href } from 'expo-router';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { Avatar, Card, Icon, Screen, Text, type IconName } from '@/components/ui';
-import { env } from '@/lib/env';
-import { session, useSession } from '@/store';
+import { session, useDataSource, useSession } from '@/store';
 import { spacing, useColors } from '@/theme';
 
 export default function AccountScreen() {
   const user = useSession();
+  const source = useDataSource();
   if (!user) return null;
 
   const signOut = () =>
@@ -42,7 +42,7 @@ export default function AccountScreen() {
       </Card>
 
       <Text variant="caption" color="textMuted" center>
-        v{Constants.expoConfig?.version} · veri: {env.dataSource}
+        v{Constants.expoConfig?.version} · veri: {source === 'mock' ? 'demo' : source}
       </Text>
     </Screen>
   );

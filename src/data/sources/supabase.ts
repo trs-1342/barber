@@ -83,6 +83,20 @@ export function createSupabaseRepository(): Repository {
       await sb().auth.signOut();
     },
 
+    onAuthChange(cb) {
+      // INITIAL_SESSION olayı açılışta kayıtlı oturumla bir kez gelir.
+      const { data } = sb().auth.onAuthStateChange((_event, s) => {
+        if (!s?.user) return cb(null);
+        const id = s.user.id;
+        // Geri çağırma içinde supabase çağrısı kilitlenmeye yol açabildiği için sonraya bırakılır.
+        setTimeout(async () => {
+          const { data: row } = await sb().from('suppliers').select('*').eq('id', id).maybeSingle();
+          if (row) cb(fromRow<Supplier>(row));
+        }, 0);
+      });
+      return () => data.subscription.unsubscribe();
+    },
+
     async updateSupplier(patch) {
       const row = check(await sb().from('suppliers').update(toRow(patch)).eq('id', await uid()).select().single());
       return fromRow<Supplier>(row);

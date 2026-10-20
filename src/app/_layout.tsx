@@ -3,21 +3,25 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
-import { useSession } from '@/store';
+import { initDataSource, useAppReady, useSession } from '@/store';
 import { themePreference, useColors, useIsDark } from '@/theme';
 
 SplashScreen.preventAutoHideAsync();
+// Kayıtlı veri kaynağını uygula ve oturumu dinlemeye başla (kalıcı oturum varsa giriş atlanır).
+initDataSource();
+themePreference.load();
 
 export default function RootLayout() {
   const dark = useIsDark();
   const colors = useColors();
   const user = useSession();
+  const ready = useAppReady();
   const base = dark ? DarkTheme : DefaultTheme;
 
+  // İlk oturum durumu gelene kadar açılış ekranı kalır; giriş ekranı bir anlığına görünmez.
   useEffect(() => {
-    // Kayıtlı tema tercihi uygulanınca açılış ekranı kalkar; yanlış temada yanıp sönme olmaz.
-    themePreference.load().finally(() => SplashScreen.hideAsync());
-  }, []);
+    if (ready) SplashScreen.hideAsync();
+  }, [ready]);
 
   return (
     <ThemeProvider

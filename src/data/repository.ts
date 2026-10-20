@@ -15,6 +15,11 @@ export interface Repository {
   /** Hesap açmadan misafir olarak devam (Firebase anonim giriş). */
   signInGuest(): Promise<Supplier>;
   signOut(): Promise<void>;
+  /**
+   * Oturum değişikliklerini dinler (açılışta kalıcı oturum dahil). Geri çağırma en az bir kez,
+   * mevcut durumla çağrılır. Dönen fonksiyon aboneliği kapatır.
+   */
+  onAuthChange(cb: (s: Supplier | null) => void): () => void;
   updateSupplier(patch: Partial<Omit<Supplier, 'id'>>): Promise<Supplier>;
 
   listOrders(signal?: AbortSignal): Promise<Order[]>;

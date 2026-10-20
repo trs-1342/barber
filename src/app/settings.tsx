@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, StyleSheet, Switch, View } from 'react-native';
 
+import { DataSourceSwitch } from '@/components/data-source-switch';
 import { SectionTitle } from '@/components/supplier';
 import { Button, Card, Chip, Input, Screen, Text } from '@/components/ui';
 import { repo } from '@/data';
@@ -79,6 +80,14 @@ export default function SettingsScreen() {
           </View>
         ))}
       </Card>
+
+      {/* Veri kaynağı: değişince oturum kapanır; Demo'da doğrudan demo hesabı, Gerçek'te giriş ekranı açılır. */}
+      <SectionTitle title="Veri kaynağı" />
+      <DataSourceSwitch />
+      <Text variant="caption" color="textMuted">
+        Demo veri cihazdaki örnek verilerle çalışır. Gerçek veri Firebase hesabınızı kullanır; değiştirince yeniden giriş
+        istenir.
+      </Text>
     </Screen>
   );
 }

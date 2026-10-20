@@ -18,8 +18,11 @@ function delay<T>(value: T, signal?: AbortSignal): Promise<T> {
   });
 }
 
-export function createMockRepository(latency = true): Repository {
-  let supplier: Supplier | null = null;
+/** `signedIn`: demo modunda giriş ekranı atlansın diye demo tedarikçiyle başlar. */
+export function createMockRepository(latency = true, signedIn = false): Repository {
+  let supplier: Supplier | null = signedIn ? { ...seed.supplier } : null;
+  const listeners = new Set<(s: Supplier | null) => void>();
+  const emit = () => listeners.forEach((l) => l(supplier));
   let orders: Order[] = seed.orders.map((o) => ({ ...o }));
   let products: Product[] = seed.products.map((p) => ({ ...p }));
   let promotions: Promotion[] = seed.promotions.map((p) => ({ ...p }));
@@ -33,11 +36,13 @@ export function createMockRepository(latency = true): Repository {
     async signIn({ email, password }) {
       if (!email.includes('@') || password.length < 6) throw new AuthError();
       supplier = { ...seed.supplier, email: email.trim().toLowerCase() };
+      emit();
       return wait(supplier);
     },
     async register({ password, ...rest }) {
       if (password.length < 6) throw new AuthError('Şifre en az 6 karakter olmalı');
       supplier = { ...rest, id: `sup${Date.now()}`, email: rest.email.trim().toLowerCase() } as Supplier;
+      emit();
       return wait(supplier);
     },
     async signInGuest() {
@@ -46,6 +51,14 @@ export function createMockRepository(latency = true): Repository {
     },
     async signOut() {
       supplier = null;
+      emit();
+    },
+    onAuthChange(cb) {
+      listeners.add(cb);
+      cb(supplier);
+      return () => {
+        listeners.delete(cb);
+      };
     },
     async updateSupplier(patch) {
       supplier = { ...(supplier ?? seed.supplier), ...patch };
