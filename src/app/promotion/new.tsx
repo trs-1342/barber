@@ -1,11 +1,11 @@
 import { router } from 'expo-router';
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { Badge, Button, Card, Chip, Icon, Input, Screen, Text } from '@/components/ui';
 import { repo, type Product } from '@/data';
 import { formatPrice } from '@/lib/format';
-import { DURATIONS, estimateReach, PLACEMENTS, validateDraft, type Placement } from '@/lib/promotions';
+import { DURATIONS, estimateImpressions, PLACEMENTS, productIneligibility, validateDraft, type Placement } from '@/lib/promotions';
 import { products, promotions } from '@/store';
 import { radius, spacing, useColors } from '@/theme';
 
@@ -25,23 +25,45 @@ export default function NewPromotionScreen() {
   const [budget, setBudget] = useState('100');
   const [touched, setTouched] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Çift dokunmada ikinci kayıt isteği gönderilmez (state güncellemesi gecikebilir).
+  const submitting = useRef(false);
 
   const q = norm(useDeferredValue(query).trim());
   const daily = Number(budget.replace(/\./g, '').replace(',', '.'));
   const product = prod.items.find((p) => p.id === productId);
 
-  // Satışta olmayan ürün reklam edilemez; stok azsa uyarılır.
+  // Uygun olmayan ürünler de listelenir ama etiketlenir; seçilirse kampanya engellenir.
   const candidates = useMemo(
-    () => prod.items.filter((p) => p.active && (!q || norm(p.name).includes(q) || norm(p.brand).includes(q))),
+    () =>
+      prod.items
+        .filter((p) => !q || norm(p.name).includes(q) || norm(p.brand).includes(q))
+        .sort((a, b) => Number(!!productIneligibility(a)) - Number(!!productIneligibility(b))),
     [prod.items, q],
   );
-  const errors = validateDraft({ productId, placement, daily }, promo.items);
+  const errors = validateDraft({ productId, placement, daily, product }, promo.items);
   const valid = Object.keys(errors).length === 0;
-  const reach = valid ? estimateReach(placement, daily, duration) : null;
+  const estimate = valid ? estimateImpressions(placement, daily, duration) : null;
+  const total = daily * duration;
 
-  async function submit() {
+  function submit() {
     setTouched(true);
-    if (!valid || !product) return;
+    if (!valid || !product || submitting.current) return;
+    // Kampanya onay özeti: para harcatan işlemden önce son kontrol.
+    Alert.alert(
+      'Kampanyayı onayla',
+      `${product.name}\n${PLACEMENTS[placement].label} · ${duration} gün\n` +
+        `Günlük ${formatPrice(daily)} · Toplam en fazla ${formatPrice(total)}\n` +
+        `Tahmini ${estimate!.min.toLocaleString('tr-TR')}–${estimate!.max.toLocaleString('tr-TR')} gösterim`,
+      [
+        { text: 'Vazgeç', style: 'cancel' },
+        { text: 'Yayına al', onPress: create },
+      ],
+    );
+  }
+
+  async function create() {
+    if (!product || submitting.current) return;
+    submitting.current = true;
     setSaving(true);
     try {
       const start = new Date();
@@ -56,8 +78,10 @@ export default function NewPromotionScreen() {
       promotions.upsert(created);
       router.replace({ pathname: '/promotion/[id]', params: { id: created.id } });
     } catch (e) {
+      // Kayıt başarısızsa listeye hiçbir şey eklenmez; kullanıcı aynı formla tekrar deneyebilir.
       Alert.alert('Kampanya oluşturulamadı', (e as Error).message);
     } finally {
+      submitting.current = false;
       setSaving(false);
     }
   }
@@ -78,13 +102,13 @@ export default function NewPromotionScreen() {
           <Button title="Yayına al" icon="rocket-outline" onPress={submit} loading={saving} disabled={touched && !valid} haptic />
         </View>
       }>
-      <Step n={1} title="Ürün seç" error={touched ? errors.product : undefined} />
+      <Step n={1} title="Ürün seç" error={productId || touched ? errors.product : undefined} />
       <Input icon="search" placeholder="Ürün ara" value={query} onChangeText={setQuery} autoCorrect={false} />
       <View style={styles.gapSm}>
         {candidates.slice(0, 6).map((p) => (
           <ProductOption key={p.id} product={p} selected={p.id === productId} onPress={() => setProductId(p.id)} />
         ))}
-        {candidates.length === 0 && <Text color="textMuted">Satışta olan ürün bulunamadı.</Text>}
+        {candidates.length === 0 && <Text color="textMuted">Ürün bulunamadı.</Text>}
       </View>
 
       <Step n={2} title="Nerede görünsün?" />
@@ -159,15 +183,19 @@ export default function NewPromotionScreen() {
             {product ? formatPrice(product.price) : ''}
           </Text>
         </View>
-        {reach && (
+        {estimate && (
           <View style={styles.row}>
-            <Icon name="people-outline" size={18} color="primary" />
+            <Icon name="eye-outline" size={18} color="primary" />
             <Text style={styles.flex}>
-              Tahmini {reach.min.toLocaleString('tr-TR')} – {reach.max.toLocaleString('tr-TR')} gösterim
+              Tahmini {estimate.min.toLocaleString('tr-TR')} – {estimate.max.toLocaleString('tr-TR')} gösterim
+              <Text variant="caption" color="textMuted">
+                {' '}
+                (≈{PLACEMENTS[placement].cpm} ₺ / 1000 gösterim)
+              </Text>
             </Text>
           </View>
         )}
-        {product && product.stock <= 15 && (
+        {product && !productIneligibility(product) && product.stock <= 15 && (
           <View style={styles.row}>
             <Icon name="warning-outline" size={18} color="warning" />
             <Text color="warning" style={styles.flex}>
@@ -203,6 +231,7 @@ function Step({ n, title, error }: { n: number; title: string; error?: string })
 
 function ProductOption({ product: p, selected, onPress }: { product: Product; selected: boolean; onPress: () => void }) {
   const colors = useColors();
+  const blocked = productIneligibility(p);
   return (
     <Pressable
       accessibilityRole="radio"
@@ -210,7 +239,12 @@ function ProductOption({ product: p, selected, onPress }: { product: Product; se
       onPress={onPress}
       style={[
         styles.option,
-        { borderColor: selected ? colors.primary : colors.border, backgroundColor: colors.surface, borderWidth: selected ? 2 : 1 },
+        {
+          borderColor: selected ? (blocked ? colors.danger : colors.primary) : colors.border,
+          backgroundColor: colors.surface,
+          borderWidth: selected ? 2 : 1,
+          opacity: blocked && !selected ? 0.6 : 1,
+        },
       ]}>
       <Icon name={selected ? 'radio-button-on' : 'radio-button-off'} size={20} color={selected ? 'primary' : 'textMuted'} />
       <View style={styles.flex}>
@@ -219,7 +253,7 @@ function ProductOption({ product: p, selected, onPress }: { product: Product; se
           {p.brand} · stok {p.stock}
         </Text>
       </View>
-      {p.featured && <Badge label="Vitrinde" />}
+      {blocked ? <Badge label={!p.active ? 'Pasif' : 'Stok yok'} tone="danger" /> : p.featured && <Badge label="Vitrinde" />}
       <Text variant="subheading" tabular>
         {formatPrice(p.price)}
       </Text>

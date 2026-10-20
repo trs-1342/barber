@@ -25,7 +25,12 @@ service cloud.firestore {
 
       match /promotions/{id} {
         allow read: if isOwner(uid);
-        allow create: if isOwner(uid)
+        // Ürün bu tedarikçinin olmalı, satışta olmalı ve stoğu bulunmalı.
+        function productOk() {
+          let prod = get(/databases/$(db)/documents/suppliers/$(uid)/products/$(request.resource.data.productId)).data;
+          return prod.active == true && prod.stock > 0;
+        }
+        allow create: if isOwner(uid) && productOk()
           && request.resource.data.status == 'active'
           && request.resource.data.dailyBudget >= 50
           && request.resource.data.impressions == 0

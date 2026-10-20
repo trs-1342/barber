@@ -3,8 +3,8 @@ import { StyleSheet, View } from 'react-native';
 
 import { Badge, Card, Icon, Text } from '@/components/ui';
 import type { Promotion } from '@/data';
-import { formatPrice } from '@/lib/format';
-import { ctr, effectiveStatus, maxBudget, PLACEMENTS, progress, PROMO_STATUS, remainingDays, spent } from '@/lib/promotions';
+import { formatPct, formatPrice } from '@/lib/format';
+import { ctr, effectiveStatus, endReason, maxBudget, PLACEMENTS, progress, PROMO_STATUS, remainingDays, spent } from '@/lib/promotions';
 import { spacing, useColors } from '@/theme';
 
 const shortDate = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short' });
@@ -46,7 +46,7 @@ export const PromotionCard = memo(function PromotionCard({
         <Text variant="subheading" style={styles.flex} numberOfLines={1}>
           {p.productName}
         </Text>
-        <Badge label={s.label} tone={s.tone} />
+        <Badge label={endReason(p, now) ?? s.label} tone={s.tone} />
       </View>
       <Text variant="caption" color="textMuted">
         {place.label} · {formatRange(p)}
@@ -55,7 +55,7 @@ export const PromotionCard = memo(function PromotionCard({
       <View style={styles.metrics}>
         <Metric label="Gösterim" value={p.impressions.toLocaleString('tr-TR')} />
         <Metric label="Tıklama" value={p.clicks.toLocaleString('tr-TR')} />
-        <Metric label="TO" value={`%${ctr(p).toLocaleString('tr-TR')}`} />
+        <Metric label="TO" value={formatPct(ctr(p))} />
       </View>
       <View style={styles.gapXs}>
         <View style={styles.row}>

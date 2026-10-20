@@ -5,10 +5,14 @@ import { Alert, StyleSheet, View } from 'react-native';
 import { formatRange, Metric, ProgressBar } from '@/components/promotion-card';
 import { Badge, Button, Card, EmptyState, Icon, Screen, Text } from '@/components/ui';
 import { repo, type Promotion } from '@/data';
-import { formatPrice } from '@/lib/format';
+import { formatPct, formatPrice } from '@/lib/format';
 import {
+  cpc,
   ctr,
   effectiveStatus,
+  endReason,
+  realizedCpm,
+  remainingBudget,
   maxBudget,
   PLACEMENTS,
   progress,
@@ -17,12 +21,13 @@ import {
   spent,
   totalDays,
 } from '@/lib/promotions';
-import { promotions } from '@/store';
+import { products, promotions } from '@/store';
 import { spacing } from '@/theme';
 
 export default function PromotionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const p = promotions.useList().items.find((x) => x.id === id);
+  const product = products.useList().items.find((x) => x.id === p?.productId);
   const [busy, setBusy] = useState<Promotion['status']>();
   const [now] = useState(() => Date.now());
 
@@ -33,7 +38,6 @@ export default function PromotionDetailScreen() {
   const place = PLACEMENTS[p.placement];
   const used = spent(p, now);
   const cap = maxBudget(p);
-  const cpc = p.clicks ? used / p.clicks : 0;
 
   async function change(next: Promotion['status']) {
     setBusy(next);
@@ -81,7 +85,7 @@ export default function PromotionDetailScreen() {
           <Text variant="heading" style={styles.flex} numberOfLines={2}>
             {p.productName}
           </Text>
-          <Badge label={s.label} tone={s.tone} />
+          <Badge label={endReason(p, now) ?? s.label} tone={s.tone} />
         </View>
         <Text color="textMuted">
           {formatRange(p)} · {totalDays(p)} gün
@@ -97,8 +101,12 @@ export default function PromotionDetailScreen() {
           <Metric label="Tıklama" value={p.clicks.toLocaleString('tr-TR')} />
         </View>
         <View style={styles.metrics}>
-          <Metric label="Tıklama oranı" value={`%${ctr(p).toLocaleString('tr-TR')}`} />
-          <Metric label="Tıklama başı" value={cpc ? formatPrice(Math.round(cpc * 100) / 100) : '—'} />
+          <Metric label="Tıklama oranı" value={formatPct(ctr(p))} />
+          <Metric label="Tıklama başı (CPC)" value={fmtOrDash(cpc(used, p.clicks))} />
+        </View>
+        <View style={styles.metrics}>
+          <Metric label="Gerçekleşen CPM" value={fmtOrDash(realizedCpm(used, p.impressions))} />
+          <Metric label="Kalan bütçe" value={formatPrice(status === 'ended' ? 0 : remainingBudget(p, now))} />
         </View>
       </Card>
 
@@ -124,6 +132,15 @@ export default function PromotionDetailScreen() {
         </Text>
       </Card>
 
+      {status !== 'ended' && product && (!product.active || product.stock <= 0) && (
+        <Card style={styles.row}>
+          <Icon name="warning-outline" color="danger" />
+          <Text color="danger" style={styles.flex}>
+            {!product.active ? 'Ürün pasife alındı' : 'Ürünün stoğu bitti'}: kampanya yeni gösterim almaz.
+          </Text>
+        </Card>
+      )}
+
       {p.impressions === 0 && status === 'active' && (
         <Card style={styles.row}>
           <Icon name="time-outline" color="textMuted" />
@@ -135,6 +152,8 @@ export default function PromotionDetailScreen() {
     </Screen>
   );
 }
+
+const fmtOrDash = (v: number | null) => (v === null ? '—' : formatPrice(v));
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },

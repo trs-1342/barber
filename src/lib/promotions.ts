@@ -1,4 +1,4 @@
-import type { Promotion } from '@/data/types';
+import type { Product, Promotion } from '@/data/types';
 import type { ColorName } from '@/theme';
 
 export type Placement = Promotion['placement'];
@@ -24,9 +24,28 @@ export const PROMO_STATUS: Record<Promotion['status'], { label: string; tone: Co
 
 const DAY = 86_400_000;
 
-/** Bitiş tarihi geçmişse kayıttaki durum ne olursa olsun kampanya bitmiştir. */
+/** Gösterimlerden hesaplanan ham harcama (tavansız). */
+const rawSpend = (p: Promotion) => (p.impressions / 1000) * PLACEMENTS[p.placement].cpm;
+
+export const isBudgetExhausted = (p: Promotion) => rawSpend(p) >= maxBudget(p);
+
+/** Süre dolduysa ya da toplam bütçe tükendiyse kayıttaki durum ne olursa olsun kampanya bitmiştir. */
 export function effectiveStatus(p: Promotion, now = Date.now()): Promotion['status'] {
-  return Date.parse(p.endsAt) <= now ? 'ended' : p.status;
+  return Date.parse(p.endsAt) <= now || isBudgetExhausted(p) ? 'ended' : p.status;
+}
+
+export function endReason(p: Promotion, now = Date.now()): string | null {
+  if (effectiveStatus(p, now) !== 'ended') return null;
+  if (isBudgetExhausted(p)) return 'Bütçe tükendi';
+  return p.status === 'ended' && Date.parse(p.endsAt) > now - 60_000 ? 'Erken bitirildi' : 'Süre doldu';
+}
+
+/** Ürün reklam edilebilir mi? Değilse nedeni döner. */
+export function productIneligibility(p: Pick<Product, 'active' | 'stock'> | undefined): string | null {
+  if (!p) return 'Ürün bulunamadı';
+  if (!p.active) return 'Ürün satışta değil (pasif)';
+  if (p.stock <= 0) return 'Ürünün stoğu yok';
+  return null;
 }
 
 export function totalDays(p: Pick<Promotion, 'startsAt' | 'endsAt'>) {
@@ -46,32 +65,43 @@ export function progress(p: Promotion, now = Date.now()) {
 
 /** Tahmini harcama: gösterim × CPM, bütçe tavanını aşamaz. */
 export function spent(p: Promotion, now = Date.now()) {
-  const byImpr = (p.impressions / 1000) * PLACEMENTS[p.placement].cpm;
-  return Math.round(Math.min(byImpr, maxBudget(p), p.dailyBudget * Math.max(1, Math.ceil(progress(p, now) * totalDays(p)))));
+  return Math.round(Math.min(rawSpend(p), maxBudget(p), p.dailyBudget * Math.max(1, Math.ceil(progress(p, now) * totalDays(p)))));
 }
 
 export const maxBudget = (p: Pick<Promotion, 'dailyBudget' | 'startsAt' | 'endsAt'>) => p.dailyBudget * totalDays(p);
 
-/** Tıklama oranı (%), bir ondalık. */
-export const ctr = (p: Pick<Promotion, 'impressions' | 'clicks'>) =>
-  p.impressions ? Math.round((p.clicks / p.impressions) * 1000) / 10 : 0;
+export const remainingBudget = (p: Promotion, now = Date.now()) => Math.max(0, maxBudget(p) - spent(p, now));
 
-/** Tahmini toplam gösterim aralığı (±%20). */
-export function estimateReach(placement: Placement, daily: number, days: number) {
+/** Tıklama oranı (%), bir ondalık. Gösterim yoksa hesaplanamaz (null). */
+export const ctr = (p: Pick<Promotion, 'impressions' | 'clicks'>) =>
+  p.impressions ? Math.round((p.clicks / p.impressions) * 1000) / 10 : null;
+
+/** Tıklama başı maliyet. Tıklama yoksa hesaplanamaz (null). */
+export const cpc = (spend: number, clicks: number) => (clicks ? Math.round((spend / clicks) * 100) / 100 : null);
+
+/** Gerçekleşen CPM. Gösterim yoksa hesaplanamaz (null). */
+export const realizedCpm = (spend: number, impressions: number) =>
+  impressions ? Math.round((spend / impressions) * 1000 * 100) / 100 : null;
+
+/** Tahmini gösterim aralığı (±%20). Erişim (tekil kişi) değil, gösterim sayısıdır. */
+export function estimateImpressions(placement: Placement, daily: number, days: number) {
   const mid = ((daily * days) / PLACEMENTS[placement].cpm) * 1000;
   return { min: Math.round(mid * 0.8), max: Math.round(mid * 1.2) };
 }
 
 export type DraftErrors = Partial<Record<'product' | 'budget' | 'overlap', string>>;
+export type Draft = { productId?: string; placement: Placement; daily: number; product?: Pick<Product, 'active' | 'stock'> };
 
 /** Yeni kampanya taslağını doğrular. Aynı ürün + yerleşimde süren kampanya varsa çakışma sayılır. */
 export function validateDraft(
-  d: { productId?: string; placement: Placement; daily: number },
+  d: Draft,
   existing: Promotion[],
   now = Date.now(),
 ): DraftErrors {
   const e: DraftErrors = {};
   if (!d.productId) e.product = 'Bir ürün seçin';
+  else e.product = productIneligibility(d.product) ?? undefined;
+  if (!e.product) delete e.product;
   const min = PLACEMENTS[d.placement].minDaily;
   if (!Number.isFinite(d.daily) || d.daily < min) e.budget = `Bu yerleşim için en az ${min} ₺/gün`;
   else if (d.daily > MAX_DAILY) e.budget = `En fazla ${MAX_DAILY.toLocaleString('tr-TR')} ₺/gün`;
@@ -97,5 +127,5 @@ export function summarizePromotions(list: Promotion[], now = Date.now()) {
     spend += spent(p, now);
     if (effectiveStatus(p, now) === 'active') active += 1;
   }
-  return { impressions, clicks, spend, active, ctr: ctr({ impressions, clicks }) };
+  return { impressions, clicks, spend, active, ctr: ctr({ impressions, clicks }), cpc: cpc(spend, clicks) };
 }

@@ -7,7 +7,7 @@ import { PromotionCard } from '@/components/promotion-card';
 import { StatCard } from '@/components/supplier';
 import { Button, Chip, EmptyState, ErrorState, Screen, Skeleton, Text } from '@/components/ui';
 import type { Promotion } from '@/data';
-import { formatPrice } from '@/lib/format';
+import { formatPct, formatPrice } from '@/lib/format';
 import { effectiveStatus, summarizePromotions } from '@/lib/promotions';
 import { promotions } from '@/store';
 import { spacing } from '@/theme';
@@ -68,7 +68,7 @@ export default function PromotionsScreen() {
                 <StatCard
                   icon="hand-left-outline"
                   label="Tıklama oranı"
-                  value={`%${summary.ctr.toLocaleString('tr-TR')}`}
+                  value={formatPct(summary.ctr)}
                   hint={`${summary.clicks.toLocaleString('tr-TR')} tıklama`}
                 />
               </View>

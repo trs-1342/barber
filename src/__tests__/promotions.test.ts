@@ -1,8 +1,10 @@
 import type { Promotion } from '@/data/types';
 import {
+  cpc,
   ctr,
   effectiveStatus,
-  estimateReach,
+  endReason,
+  estimateImpressions,
   maxBudget,
   remainingDays,
   spent,
@@ -43,11 +45,13 @@ it('harcama gösterim maliyetinden hesaplanır, tavanı aşamaz', () => {
 
 it('tıklama oranı bir ondalıkla, sıfıra bölmez', () => {
   expect(ctr({ impressions: 1000, clicks: 37 })).toBe(3.7);
-  expect(ctr({ impressions: 0, clicks: 0 })).toBe(0);
+  expect(ctr({ impressions: 0, clicks: 0 })).toBeNull();
+  expect(cpc(100, 0)).toBeNull();
+  expect(cpc(100, 8)).toBe(12.5);
 });
 
-it('tahmini erişim aralığı', () => {
-  expect(estimateReach('featured', 120, 10)).toEqual({ min: 80_000, max: 120_000 });
+it('tahmini gösterim aralığı', () => {
+  expect(estimateImpressions('featured', 120, 10)).toEqual({ min: 80_000, max: 120_000 });
 });
 
 describe('validateDraft', () => {
@@ -60,11 +64,26 @@ describe('validateDraft', () => {
 
   it('aynı ürün + yerleşimde süren kampanyayı engeller, bitmiş olanı engellemez', () => {
     const running = [mk()];
-    expect(validateDraft({ productId: 'p1', placement: 'featured', daily: 100 }, running, now).overlap).toBeDefined();
-    expect(validateDraft({ productId: 'p1', placement: 'search', daily: 100 }, running, now)).toEqual({});
+    const ok = { productId: 'p1', daily: 100, product: { active: true, stock: 5 } };
+    expect(validateDraft({ ...ok, placement: 'featured' }, running, now).overlap).toBeDefined();
+    expect(validateDraft({ ...ok, placement: 'search' }, running, now)).toEqual({});
     const ended = [mk({ endsAt: new Date(now - DAY).toISOString() })];
-    expect(validateDraft({ productId: 'p1', placement: 'featured', daily: 100 }, ended, now)).toEqual({});
+    expect(validateDraft({ ...ok, placement: 'featured' }, ended, now)).toEqual({});
   });
+
+  it('stoksuz veya pasif ürüne kampanya açılamaz', () => {
+    const base = { productId: 'p9', placement: 'featured' as const, daily: 100 };
+    expect(validateDraft({ ...base, product: { active: true, stock: 0 } }, [], now).product).toBe('Ürünün stoğu yok');
+    expect(validateDraft({ ...base, product: { active: false, stock: 9 } }, [], now).product).toBe('Ürün satışta değil (pasif)');
+  });
+});
+
+it('toplam bütçe tükenince kampanya biter', () => {
+  // 1000 ₺ tavan / 12 ₺ CPM ≈ 83.334 gösterimde tükenir.
+  const p = mk({ impressions: 90_000 });
+  expect(effectiveStatus(p, now)).toBe('ended');
+  expect(endReason(p, now)).toBe('Bütçe tükendi');
+  expect(effectiveStatus(mk({ impressions: 50_000 }), now)).toBe('active');
 });
 
 it('özet etkin durumları sayar', () => {

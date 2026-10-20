@@ -69,7 +69,8 @@ export function createMockRepository(latency = true): Repository {
     listPromotions: (signal) => wait(promotions, signal),
     async createPromotion(input) {
       // Sunucu tarafı doğrulama: istemci atlansa bile aynı kurallar uygulanır.
-      const errors = validateDraft({ ...input, daily: input.dailyBudget }, promotions);
+      const product = products.find((p) => p.id === input.productId);
+      const errors = validateDraft({ ...input, daily: input.dailyBudget, product }, promotions);
       const first = Object.values(errors)[0];
       if (first) throw new ValidationError(first);
       const created: Promotion = { ...input, id: `pr${Date.now()}`, status: 'active', impressions: 0, clicks: 0 };

@@ -19,6 +19,7 @@ export const products: Product[] = [
   { id: 'p5', name: 'Keratin Şampuan 5 lt', brand: 'Atlas Pro', category: 'Şampuan', price: 640, stock: 40, unit: 'bidon', active: true, featured: true },
   { id: 'p6', name: 'Boyun Kağıdı (5 rulo)', brand: 'Atlas', category: 'Sarf', price: 75, stock: 500, unit: 'paket', active: true, featured: false },
   { id: 'p7', name: 'Sakal Yağı 50 ml', brand: 'Beard Co', category: 'Bakım', price: 180, stock: 0, unit: 'adet', active: false, featured: false },
+  { id: 'p9', name: 'Ense Fırçası (Ahşap)', brand: 'Atlas', category: 'Sarf', price: 95, stock: 0, unit: 'adet', active: true, featured: false },
   { id: 'p8', name: 'Saç Kurutma Makinesi 2400W', brand: 'Parlux', category: 'Cihaz', price: 3450, stock: 9, unit: 'adet', active: true, featured: false },
 ];
 
@@ -84,5 +85,18 @@ export const promotions: Promotion[] = [
     status: 'ended',
     impressions: 40210,
     clicks: 1104,
+  },
+  {
+    // Demo: süresi bitmeden toplam bütçesi tükenen kampanya.
+    id: 'pr3',
+    productId: 'p3',
+    productName: products[2]!.name,
+    placement: 'search',
+    dailyBudget: 50,
+    startsAt: new Date(Date.now() - 6 * 86_400_000).toISOString(),
+    endsAt: new Date(Date.now() + 4 * 86_400_000).toISOString(),
+    status: 'active',
+    impressions: 58200,
+    clicks: 1630,
   },
 ];
