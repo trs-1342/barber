@@ -42,7 +42,7 @@ example
 /ios
 /android
 
-# env (EXPO_PUBLIC_* değerleri istemciye gömülür ama proje kimlikleri depoya girmesin)
+# yerel env çeşitleri (.env kullanıcı kararıyla depoda; Firebase istemci anahtarları gizli değildir, koruma Firestore kurallarındadır)
 .env.*
 !.env.example
 
